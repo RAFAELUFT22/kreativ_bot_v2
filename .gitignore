@@ -1,0 +1,25 @@
+# NodeJS
+node_modules/
+dist/
+npm-debug.log*
+
+# Environment
+.env
+.env.local
+.env.production
+
+# Editor
+.vscode/
+.idea/
+*.swp
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Docker
+docker-compose.override.yml
+
+# Other
+read_docx.py
+*.log
