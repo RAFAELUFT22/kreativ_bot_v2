@@ -93,7 +93,7 @@
       "position": [900, 300],
       "parameters": {
         "operation": "executeQuery",
-        "query": "SELECT attendance_status, current_module FROM students WHERE phone = '{{ $json.phone }}' LIMIT 1",
+        "query": "SELECT COALESCE(s.attendance_status, 'new') as attendance_status, COALESCE(s.current_module, 0) as current_module FROM (SELECT 1) t LEFT JOIN students s ON s.phone = '{{ $json.phone }}' LIMIT 1",
         "options": {}
       },
       "credentials": {
@@ -202,7 +202,7 @@
       "position": [1780, 480],
       "parameters": {
         "method": "POST",
-        "url": "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=AIzaSyCfZHfrv7bbcKmXeWWJnUJioWqfFnOnXzQ",
+        "url": "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=AIzaSyCfZHfrv7bbcKmXeWWJnUJioWqfFnOnXzQ",
         "sendBody": true,
         "specifyBody": "json",
         "jsonBody": "={{ JSON.stringify($json.geminiPayload) }}",
