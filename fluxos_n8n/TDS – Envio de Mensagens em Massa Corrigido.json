@@ -1,0 +1,706 @@
+{
+  "name": "TDS – Envio de Mensagens em Massa",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "webhook/enviar-mensagem-tds",
+        "options": {}
+      },
+      "id": "7c6ce52f-a961-4bac-9713-56099915195e",
+      "name": "Webhook Trigger - Receber Requisição",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        -2000,
+        -336
+      ],
+      "webhookId": "6eef0f94-dbb2-4363-a71b-11560802a508"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "id-1",
+              "name": "mensagem",
+              "value": "={{ $json.body.mensagem }}",
+              "type": "string"
+            },
+            {
+              "id": "id-2",
+              "name": "filtro",
+              "value": "={{ $json.body.filtro }}",
+              "type": "string"
+            },
+            {
+              "id": "id-3",
+              "name": "curso_id",
+              "value": "={{ $json.body.curso_id }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "9c1cf4db-fb07-488b-a927-a7c126d2d560",
+      "name": "Workflow Configuration",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        -1776,
+        -336
+      ]
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "1dk0g3CIxLI9qbbemS9VCy10w52KN1H_RBxnQLMi_wa8",
+          "mode": "list",
+          "cachedResultName": "Alunos_TDS",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1msuohTMWKSERPaLQDm90qcU9aeb6OcVKGdxooOezOUc/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 1590747257,
+          "mode": "list",
+          "cachedResultName": "Alunos_TDS",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1msuohTMWKSERPaLQDm90qcU9aeb6OcVKGdxooOezOUc/edit#gid=1590747257"
+        },
+        "options": {}
+      },
+      "id": "1139f5ae-3d22-4bc2-9dd1-060aea9ca334",
+      "name": "Ler Alunos_TDS",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        -1552,
+        -464
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "pt2CSsDiojxbpscG",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "1dk0g3CIxLI9qbbemS9VCy10w52KN1H_RBxnQLMi_wa8",
+          "mode": "list",
+          "cachedResultName": "Alunos_TDS",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1msuohTMWKSERPaLQDm90qcU9aeb6OcVKGdxooOezOUc/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 875556611,
+          "mode": "list",
+          "cachedResultName": "Progresso_Cursos",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1msuohTMWKSERPaLQDm90qcU9aeb6OcVKGdxooOezOUc/edit#gid=875556611"
+        },
+        "options": {}
+      },
+      "id": "0b2892e2-0541-4508-b2f4-315322c9012e",
+      "name": "Ler Progresso_Cursos",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        -1552,
+        -272
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "pt2CSsDiojxbpscG",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "combine",
+        "fieldsToMatchString": "Aluno_ID",
+        "options": {}
+      },
+      "id": "0bd0b618-a06b-4461-8a3a-7a500d773ecc",
+      "name": "Juntar Alunos com Progresso",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.2,
+      "position": [
+        -1328,
+        -336
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// Converte WhatsApp do formato brasileiro (63 9 9999 9999) para E.164 (+556399999999)\nconst whatsapp = $input.item.json.whatsapp || '';\n\n// Remove todos os espaços e caracteres não numéricos\nconst cleaned = whatsapp.replace(/\\D/g, '');\n\n// Adiciona o código do país (+55) se não estiver presente\nlet e164;\nif (cleaned.startsWith('55')) {\n  e164 = '+' + cleaned;\n} else {\n  e164 = '+55' + cleaned;\n}\n\n// Retorna o item com o WhatsApp convertido\nreturn {\n  ...($input.item.json),\n  whatsapp: e164\n};"
+      },
+      "id": "29a20e89-15d1-4fbb-a224-b6620267202a",
+      "name": "Converter WhatsApp para E.164",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -1104,
+        -336
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "id": "condition-1",
+              "leftValue": "={{ $json.filtro }}",
+              "rightValue": "all",
+              "operator": {
+                "type": "string",
+                "operation": "equals",
+                "singleValue": true
+              }
+            },
+            {
+              "id": "condition-2",
+              "leftValue": "={{ $json.filtro }}",
+              "rightValue": "em_andamento",
+              "operator": {
+                "type": "string",
+                "operation": "equals",
+                "singleValue": true
+              },
+              "combinator": "or"
+            },
+            {
+              "id": "condition-3",
+              "leftValue": "={{ $json.Status }}",
+              "rightValue": "em_andamento",
+              "operator": {
+                "type": "string",
+                "operation": "equals",
+                "singleValue": true
+              },
+              "combinator": "and"
+            },
+            {
+              "id": "condition-4",
+              "leftValue": "={{ $json.filtro }}",
+              "rightValue": "concluido",
+              "operator": {
+                "type": "string",
+                "operation": "equals",
+                "singleValue": true
+              },
+              "combinator": "or"
+            },
+            {
+              "id": "condition-5",
+              "leftValue": "={{ $json.Status }}",
+              "rightValue": "concluido",
+              "operator": {
+                "type": "string",
+                "operation": "equals",
+                "singleValue": true
+              },
+              "combinator": "and"
+            },
+            {
+              "id": "condition-6",
+              "leftValue": "={{ $json.curso_id }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty",
+                "singleValue": true
+              },
+              "combinator": "and"
+            },
+            {
+              "id": "condition-7",
+              "leftValue": "={{ $json.Curso_ID }}",
+              "rightValue": "={{ $json.curso_id }}",
+              "operator": {
+                "type": "string",
+                "operation": "equals",
+                "singleValue": true
+              },
+              "combinator": "and"
+            }
+          ],
+          "combinator": "and"
+        },
+        "looseTypeValidation": true,
+        "options": {}
+      },
+      "id": "6a4d01c3-3bb9-4ac1-b3ab-9186e744c8e6",
+      "name": "Filtrar por Status e Curso",
+      "type": "n8n-nodes-base.filter",
+      "typeVersion": 2.3,
+      "position": [
+        -880,
+        -336
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "=// Prepara mensagem personalizada para cada aluno: 'Oi {{Nome_Completo}}! {{mensagem}}'\nconst nomeCompleto = $input.item.json.Nome_Completo || 'Aluno';\nconst mensagem = $input.item.json.mensagem || '';\n\nconst mensagemPersonalizada = `Oi ${nomeCompleto}! ${mensagem}`;\n\nreturn {\n  ...($input.item.json),\n  mensagemPersonalizada: mensagemPersonalizada\n};"
+      },
+      "id": "a89aba97-1451-45d3-a910-e3a2e8bf25fc",
+      "name": "Preparar Mensagens Personalizadas",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -656,
+        -336
+      ]
+    },
+    {
+      "parameters": {
+        "batchSize": 50,
+        "options": {}
+      },
+      "id": "dd996483-e04c-4cc6-96db-80230798bfd2",
+      "name": "Loop Over Items - Batch de 50",
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        -432,
+        -336
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "send",
+        "recipientPhoneNumber": "={{ $json.whatsapp_e164 }}",
+        "textBody": "={{ $json.mensagem_personalizada }}",
+        "additionalFields": {}
+      },
+      "id": "7e7f84a2-3943-4bc7-88a1-3bc6e172ff02",
+      "name": "Enviar Mensagem WhatsApp",
+      "type": "n8n-nodes-base.whatsApp",
+      "typeVersion": 1.1,
+      "position": [
+        -208,
+        -528
+      ],
+      "webhookId": "86f2fc20-65a3-451f-8e86-94b66cae25f7"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "id-1",
+              "leftValue": "={{ $json.error }}",
+              "operator": {
+                "type": "string",
+                "operation": "notExists"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "72246883-3516-4f1d-bd6c-9fb187e480b9",
+      "name": "Verificar Sucesso do Envio",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        16,
+        -528
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "id-1",
+              "name": "Data",
+              "value": "={{ $now.toISO() }}",
+              "type": "string"
+            },
+            {
+              "id": "id-2",
+              "name": "Aluno_ID",
+              "value": "={{ $json.Aluno_ID }}",
+              "type": "string"
+            },
+            {
+              "id": "id-3",
+              "name": "Mensagem",
+              "value": "={{ $json.mensagem_personalizada }}",
+              "type": "string"
+            },
+            {
+              "id": "id-4",
+              "name": "Status",
+              "value": "Enviado",
+              "type": "string"
+            },
+            {
+              "id": "id-5",
+              "name": "Observacoes",
+              "value": "",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "a66c55f6-d5d4-4aef-b65a-119d22e20240",
+      "name": "Preparar Log - Sucesso",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        240,
+        -624
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "id-1",
+              "name": "Data",
+              "value": "={{ $now.toISO() }}",
+              "type": "string"
+            },
+            {
+              "id": "id-2",
+              "name": "Aluno_ID",
+              "value": "={{ $json.Aluno_ID }}",
+              "type": "string"
+            },
+            {
+              "id": "id-3",
+              "name": "Mensagem",
+              "value": "={{ $json.mensagem_personalizada }}",
+              "type": "string"
+            },
+            {
+              "id": "id-4",
+              "name": "Status",
+              "value": "Falhou",
+              "type": "string"
+            },
+            {
+              "id": "id-5",
+              "name": "Observacoes",
+              "value": "={{ $json.error || 'Erro desconhecido no envio' }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "0b599cb9-b8e4-4b0e-b4c8-1cd5cc83a784",
+      "name": "Preparar Log - Erro",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        240,
+        -432
+      ]
+    },
+    {
+      "parameters": {},
+      "id": "cba359db-5a42-4fdf-bc83-ca40bda3bc51",
+      "name": "Unir Logs de Sucesso e Erro",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.2,
+      "position": [
+        464,
+        -432
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "appendOrUpdate",
+        "documentId": {
+          "__rl": true,
+          "mode": "list",
+          "value": ""
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "name",
+          "value": "COMUNICACAO"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Data": "={{ $now.toISO() }}",
+            "Aluno_ID": "={{ $json.Aluno_ID }}",
+            "Mensagem": "={{ $json.Mensagem }}",
+            "Status": "={{ $json.Status }}",
+            "Observacoes": "={{ $json.Observacoes }}"
+          }
+        },
+        "options": {}
+      },
+      "id": "99f0aefd-0e1e-448b-89b7-a5d0406d5d49",
+      "name": "Registrar em Comunicacoes",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        -208,
+        -336
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "pt2CSsDiojxbpscG",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "id-1",
+              "name": "total_enviados",
+              "value": "={{ $('Preparar Log - Sucesso').all().length }}",
+              "type": "number"
+            },
+            {
+              "id": "id-2",
+              "name": "total_falhas",
+              "value": "={{ $('Preparar Log - Erro').all().length }}",
+              "type": "number"
+            },
+            {
+              "id": "id-3",
+              "name": "mensagem",
+              "value": "Comunicação TDS concluída",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "d4780cf9-4749-4fc7-910f-5c37112ffb1b",
+      "name": "Resumo Final",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        16,
+        -336
+      ]
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Webhook Trigger - Receber Requisição": {
+      "main": [
+        [
+          {
+            "node": "Workflow Configuration",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Workflow Configuration": {
+      "main": [
+        [
+          {
+            "node": "Ler Alunos_TDS",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Ler Progresso_Cursos",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Ler Alunos_TDS": {
+      "main": [
+        [
+          {
+            "node": "Juntar Alunos com Progresso",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Ler Progresso_Cursos": {
+      "main": [
+        [
+          {
+            "node": "Juntar Alunos com Progresso",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Juntar Alunos com Progresso": {
+      "main": [
+        [
+          {
+            "node": "Converter WhatsApp para E.164",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Converter WhatsApp para E.164": {
+      "main": [
+        [
+          {
+            "node": "Filtrar por Status e Curso",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Filtrar por Status e Curso": {
+      "main": [
+        [
+          {
+            "node": "Preparar Mensagens Personalizadas",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Preparar Mensagens Personalizadas": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Items - Batch de 50",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Loop Over Items - Batch de 50": {
+      "main": [
+        [
+          {
+            "node": "Registrar em Comunicacoes",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Enviar Mensagem WhatsApp",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Enviar Mensagem WhatsApp": {
+      "main": [
+        [
+          {
+            "node": "Verificar Sucesso do Envio",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Verificar Sucesso do Envio": {
+      "main": [
+        [
+          {
+            "node": "Preparar Log - Sucesso",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Preparar Log - Erro",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Preparar Log - Sucesso": {
+      "main": [
+        [
+          {
+            "node": "Unir Logs de Sucesso e Erro",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Preparar Log - Erro": {
+      "main": [
+        [
+          {
+            "node": "Unir Logs de Sucesso e Erro",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Unir Logs de Sucesso e Erro": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Items - Batch de 50",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Registrar em Comunicacoes": {
+      "main": [
+        [
+          {
+            "node": "Resumo Final",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "availableInMCP": false
+  },
+  "versionId": "01c045ea-c2c5-493a-a726-0399079ca997",
+  "meta": {
+    "instanceId": "64c85563f8801776ecae6fead267bb9541ce9a04b035dc757f1710cb52d2b82f"
+  },
+  "id": "mpjm-2C086aiaygIEkUpE",
+  "tags": []
+}

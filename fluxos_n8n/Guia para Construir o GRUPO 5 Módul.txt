@@ -1,0 +1,71 @@
+  Guia para Construir o "GRUPO 5: Módulo 2 - A IA como sua Ajudante em Casa"
+
+  Contexto: O aluno chegará aqui ao clicar "Vamos!" no final do Módulo 1, através de um bloco Jump.
+
+   1. Adicione o Bloco de Texto (Título do Módulo):
+       * Tipo: Text
+       * Nomeie este bloco: m2-start-block (Este nome é fundamental para o roteamento dinâmico do n8n e do Menu Principal).
+       * Conteúdo:
+          > Módulo 2: A IA como sua Ajudante em Casa! 🍳🏠
+          >
+          > Agora que você já sabe tirar dúvidas, vamos ver como a IA pode te ajudar com receitas, listas de compras e até organizar a casa!
+
+   2. Adicione o Bloco de Texto (Exemplos Práticos):
+       * Tipo: Text
+       * Conteúdo:
+          > Exemplo 1: Na Cozinha. Tem sobras na geladeira? Em vez de quebrar a cabeça, pergunte:
+          >
+          > O que posso fazer com arroz cozido, 2 ovos e queijo?
+          >
+          > Exemplo 2: Organização. Quer planejar a semana? Peça:
+          >
+          > Me dê ideias de lanches saudáveis para levar para o trabalho de segunda a sexta.
+       * Conecte a saída do bloco de título (Passo 1) a este bloco.
+
+   3. Adicione o Bloco de Áudio (Dica de Ouro):
+       * Tipo: Audio
+       * Instrução: Grave e faça upload da mensagem de áudio: "Uma dica legal é usar o áudio para fazer as perguntas! Em vez de digitar, aperte o microfone no seu teclado e
+         fale a pergunta. É muito mais rápido e prático no dia a dia!"
+       * Conecte a saída do bloco de exemplos (Passo 2) a este bloco.
+
+   4. Adicione o Bloco de Texto (Atividade):
+       * Tipo: Text
+       * Conteúdo:
+          > Sua vez!
+          >
+          > Peça para a IA uma receita de bolo de fubá simples e rápido. Depois me diga se gostou da receita que ela sugeriu!
+       * Conecte a saída do bloco de áudio (Passo 3) a este bloco.
+
+   5. Adicione o Bloco de Botões (Confirmação da Atividade):
+       * Tipo: Buttons
+       * Mensagem: E aí, achou a receita?
+       * Botões:
+           1. Sim, que delícia! 😋
+           2. Tive dificuldade
+       * Conecte a saída do bloco de atividade (Passo 4) a este bloco.
+
+   6. Crie o Caminho de Sucesso:
+       * Adicione um novo bloco de Text.
+       * Conteúdo: Maravilha! 🎉 Você concluiu o Módulo 2! Da próxima vez, pode pedir ajuda até para montar um cardápio completo da semana!
+       * Conecte a saída do botão "Sim, que delícia! 😋" a este novo bloco.
+       * (O caminho "Tive dificuldade" pode ter um texto de ajuda e voltar para o Passo 4).
+
+   7. Adicione o Bloco Webhook (Salvar Progresso):
+       * Tipo: Webhook
+       * Nome: API: Concluir Módulo 2
+       * URL: https://SEU_N8N/webhook/atualizar-progresso
+       * Body: { "aluno_id": "{{user.id}}", "curso_id": "IA_PILOTO", "bloco_concluido": "M2_COMPLETO" }
+       * Conecte a saída do bloco de sucesso (Passo 6) a este webhook.
+
+   8. Adicione o Bloco de Botões (Próximo Passo):
+       * Tipo: Buttons
+       * Mensagem: Vamos aprender a usar a IA para cuidar da sua saúde e bem-estar no próximo módulo?
+       * Botões:
+           1. Vamos!
+           2. Pausar por agora
+       * Conecte a saída do webhook (Passo 7) a este bloco.
+
+   9. Configure as Saídas Finais:
+       * Saída "Vamos!": Conecte a um bloco Jump que leva ao primeiro bloco do GRUPO 6: Módulo 3 (que podemos nomear m3-start-block).
+       * Saída "Pausar por agora": Conecte a um bloco Text com a mensagem de despedida:
+          > Entendido! Lembre-se, para continuar o curso depois, é só me mandar um 'oi' de novo. Até mais!

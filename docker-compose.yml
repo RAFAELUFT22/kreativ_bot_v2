@@ -1,7 +1,33 @@
-version: '3.8'
+# =============================================================================
+# STACK KREATIV EDUCAÇÃO - VPS HOSTINGER 3.8GB RAM / 1 vCPU
+# Domínio: extensionista.site
+# Coolify + Traefik v3 gerenciam proxy e SSL (Let's Encrypt automático)
+# =============================================================================
+# FASES:
+#   Fase 1 (atual): postgres, redis, evolution-api, n8n, builderbot, minio
+#   Fase 2 (upgrade VPS ≥8GB): adicionar tooljet, metabase, chatwoot
+#
+# SUBDOMÍNIOS (criar registros DNS tipo A apontando para o IP do VPS):
+#   n8n.extensionista.site         → N8N (automação)
+#   evolution.extensionista.site   → Evolution API (WhatsApp)
+#   files.extensionista.site       → MinIO Console (storage)
+#   admin.extensionista.site       → ToolJet (Fase 2)
+#   dash.extensionista.site        → Metabase (Fase 2)
+#   suporte.extensionista.site     → Chatwoot (Fase 2)
+# =============================================================================
+
+networks:
+  kreativ_net:
+    driver: bridge
+  coolify:
+    external: true # rede do Traefik gerenciado pelo Coolify
 
 services:
-  # 1. PostgreSQL (Shared Instance)
+
+  # ===========================================================================
+  # INFRAESTRUTURA BASE — apenas rede interna, sem exposição externa
+  # ===========================================================================
+
   postgres:
     image: pgvector/pgvector:pg16
     container_name: kreativ_postgres
@@ -9,129 +35,414 @@ services:
     environment:
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
-      POSTGRES_DB: ${POSTGRES_DB} # Default DB
+      POSTGRES_DB: ${POSTGRES_DB}
     volumes:
       - postgres_data:/var/lib/postgresql/data
-      # Init script to create ToolJet DB user/db if not exists
       - ./init-scripts:/docker-entrypoint-initdb.d
-    ports:
-      - "5432:5432"
     networks:
       - kreativ_net
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
-      interval: 5s
+      test: [ "CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}" ]
+      interval: 10s
       timeout: 5s
       retries: 5
 
-  # 2. Redis
+  web:
+    build:
+      context: ./apps/web
+      dockerfile: Dockerfile
+    container_name: kreativ_web
+    restart: always
+    networks:
+      - kreativ_net
+      - coolify
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.kreativ-web.rule=Host(`extensionista.site`)"
+      - "traefik.http.routers.kreativ-web.entrypoints=https"
+      - "traefik.http.routers.kreativ-web.tls=true"
+      - "traefik.http.routers.kreativ-web.tls.certresolver=letsencrypt"
+      - "traefik.http.services.kreativ-web.loadbalancer.server.port=80"
+      # HTTP -> HTTPS redirect
+      - "traefik.http.routers.kreativ-web-http.rule=Host(`extensionista.site`)"
+      - "traefik.http.routers.kreativ-web-http.entrypoints=http"
+      - "traefik.http.routers.kreativ-web-http.middlewares=kreativ-https-redirect"
+
   redis:
-    image: redis:alpine
+    image: redis:7-alpine
     container_name: kreativ_redis
     restart: always
-    command: redis-server --requirepass ${REDIS_PASSWORD}
     volumes:
       - redis_data:/data
-    ports:
-      - "6379:6379"
     networks:
       - kreativ_net
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
-      interval: 5s
+      test: [ "CMD", "redis-cli", "-a", "${REDIS_PASSWORD}", "ping" ]
+      interval: 10s
       timeout: 5s
       retries: 5
 
-  # 3. N8N
-  n8n:
-    image: n8nio/n8n:latest
-    container_name: kreativ_n8n
+  # ===========================================================================
+  # WHATSAPP: EVOLUTION API v2
+  # https://evolution.extensionista.site
+  # ===========================================================================
+
+  evolution-api:
+    build:
+      context: ./apps/evolution
+      dockerfile: Dockerfile
+    image: kreativ_evolution_custom
+    container_name: kreativ_evolution
     restart: always
-    ports:
-      - "${N8N_PORT}:5678"
     environment:
-      - N8N_BASIC_AUTH_ACTIVE=${N8N_BASIC_AUTH_ACTIVE}
-      - N8N_BASIC_AUTH_USER=${N8N_BASIC_AUTH_USER}
-      - N8N_BASIC_AUTH_PASSWORD=${N8N_BASIC_AUTH_PASSWORD}
-      - N8N_HOST=${N8N_HOST}
-      - N8N_PORT=${N8N_PORT}
-      - N8N_PROTOCOL=${N8N_PROTOCOL}
-      - WEBHOOK_URL=${WEBHOOK_URL}
-      - NODE_ENV=${NODE_ENV}
-      - DB_TYPE=postgresdb
-      - DB_POSTGRESDB_DATABASE=${POSTGRES_DB}
-      - DB_POSTGRESDB_HOST=${POSTGRES_HOST}
-      - DB_POSTGRESDB_PORT=${POSTGRES_PORT}
-      - DB_POSTGRESDB_USER=${POSTGRES_USER}
-      - DB_POSTGRESDB_PASSWORD=${POSTGRES_PASSWORD}
-    links:
-      - postgres
-      - redis
+      # --- Servidor ---
+      SERVER_TYPE: http
+      SERVER_PORT: 8080
+
+      # --- Autenticação ---
+      AUTHENTICATION_TYPE: apikey
+      AUTHENTICATION_API_KEY: ${EVOLUTION_API_KEY}
+
+      # --- Banco de dados ---
+      DATABASE_ENABLED: "true"
+      DATABASE_PROVIDER: postgresql
+      DATABASE_CONNECTION_URI: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@kreativ_postgres:5432/${EVOLUTION_DB}
+      DATABASE_SAVE_DATA_INSTANCE: "true"
+      DATABASE_SAVE_DATA_NEW_MESSAGE: "true"
+      DATABASE_SAVE_MESSAGE_UPDATE: "true"
+      DATABASE_SAVE_DATA_CONTACTS: "true"
+      DATABASE_SAVE_DATA_CHATS: "true"
+      DATABASE_SAVE_DATA_LABELS: "true"
+
+      # --- Redis ---
+      REDIS_ENABLED: "true"
+      REDIS_URI: redis://redis:6379/1
+      CACHE_REDIS_ENABLED: "false"
+      CACHE_REDIS_URI: redis://redis:6379/2
+      CACHE_REDIS_PREFIX_KEY: evol
+      CACHE_REDIS_SAVE_INSTANCES: "false"
+
+      # --- Webhook: Evolution → BuilderBot registra automaticamente na init ---
+      WEBHOOK_GLOBAL_ENABLED: "false"
+
+      # --- Chatwoot Integration ---
+      CHATWOOT_ENABLED: "true"
+      CHATWOOT_MESSAGE_READ: "true"
+      CHATWOOT_MESSAGE_DELETE: "true"
+      CHATWOOT_BOT_CONTACT: "true"
+
+      # --- Log ---
+      LOG_LEVEL: ERROR
+      LOG_COLOR: "false"
+      LOG_BAILEYS: error
+      DEL_INSTANCE: "false"
+
+    volumes:
+      - evolution_data:/evolution/instances
+    ports:
+      - "8081:8080" # acesso direto para setup (8080 ocupado pelo Traefik)
+    networks:
+      - kreativ_net
+      - coolify # necessário para Traefik rotear o tráfego externo
+    labels:
+      # Traefik v3 — roteamento HTTPS automático via Coolify
+      - "traefik.enable=true"
+      - "traefik.http.routers.kreativ-evolution.rule=Host(`evolution.extensionista.site`)"
+      - "traefik.http.routers.kreativ-evolution.entrypoints=https"
+      - "traefik.http.routers.kreativ-evolution.tls=true"
+      - "traefik.http.routers.kreativ-evolution.tls.certresolver=letsencrypt"
+      - "traefik.http.services.kreativ-evolution.loadbalancer.server.port=8080"
+      # Redireciona HTTP → HTTPS
+      - "traefik.http.routers.kreativ-evolution-http.rule=Host(`evolution.extensionista.site`)"
+      - "traefik.http.routers.kreativ-evolution-http.entrypoints=http"
+      - "traefik.http.routers.kreativ-evolution-http.middlewares=kreativ-https-redirect"
+      - "traefik.http.middlewares.kreativ-https-redirect.redirectscheme.scheme=https"
     depends_on:
       postgres:
         condition: service_healthy
       redis:
         condition: service_healthy
+
+  # ===========================================================================
+  # AUTOMAÇÃO: N8N
+  # https://n8n.extensionista.site
+  # ===========================================================================
+
+  n8n:
+    image: n8nio/n8n:latest
+    container_name: kreativ_n8n
+    restart: always
+    environment:
+      N8N_HOST: ${N8N_HOST}
+      N8N_PORT: 5678
+      N8N_PROTOCOL: ${N8N_PROTOCOL:-https}
+      WEBHOOK_URL: ${WEBHOOK_URL}
+      N8N_EDITOR_BASE_URL: ${WEBHOOK_URL}
+      N8N_BASIC_AUTH_ACTIVE: ${N8N_BASIC_AUTH_ACTIVE:-true}
+      N8N_BASIC_AUTH_USER: ${N8N_BASIC_AUTH_USER}
+      N8N_BASIC_AUTH_PASSWORD: ${N8N_BASIC_AUTH_PASSWORD}
+      DB_TYPE: postgresdb
+      DB_POSTGRESDB_DATABASE: ${POSTGRES_DB}
+      DB_POSTGRESDB_HOST: kreativ_postgres
+      DB_POSTGRESDB_PORT: 5432
+      DB_POSTGRESDB_USER: ${POSTGRES_USER}
+      DB_POSTGRESDB_PASSWORD: ${POSTGRES_PASSWORD}
+      N8N_ENCRYPTION_KEY: ${N8N_ENCRYPTION_KEY}
+      NODE_ENV: production
+      EXECUTIONS_PROCESS: main
+      N8N_METRICS: "false"
+      N8N_PROXY_HOPS: 1
+
     volumes:
       - n8n_data:/home/node/.n8n
     networks:
       - kreativ_net
-
-  # 4. BuilderBot (Official API Mode)
-  builderbot:
-    image: node:21-alpine
-    container_name: kreativ_builderbot
-    restart: always
-    user: "node"
-    working_dir: /app
-    environment:
-      - NODE_ENV=development
-      - PORT=${BUILDERBOT_PORT}
-      # Database connection for bot state
-      - POSTGRES_URL=postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
-      # Meta Provider Config
-      - WA_TOKEN=${META_JWT_TOKEN}
-      - WA_ID=${META_NUMBER_ID}
-      - WA_VERIFY_TOKEN=${META_VERIFY_TOKEN}
-      - WA_VERSION=${META_VERSION}
-    volumes:
-      - ./apps/builderbot:/app
-    command: tail -f /dev/null
-    ports:
-      - "${BUILDERBOT_PORT}:${BUILDERBOT_PORT}"
-    depends_on:
-      - postgres
-      - redis
-    networks:
-      - kreativ_net
-
-  # 5. ToolJet (Management Dashboard)
-  tooljet:
-    image: tooljet/tooljet:v2.23.0-aa # Using a specific stable version or 'latest'
-    container_name: kreativ_tooljet
-    restart: always
-    ports:
-      - "8080:80"
-    environment:
-      - LOCKBOX_KEY=${LOCKBOX_KEY}
-      - PG_HOST=${POSTGRES_HOST}
-      - PG_DB=${TOOLJET_DB_NAME}
-      - PG_USER=${POSTGRES_USER} # Using root user for simplicity in setup, or create separate
-      - PG_PASSWORD=${POSTGRES_PASSWORD}
-      - PG_PORT=${POSTGRES_PORT}
-      - TOOLJET_HOST=${TOOLJET_HOST}
-      - DEPLOYMENT_PLATFORM=docker
+      - coolify
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.kreativ-n8n.rule=Host(`n8n.extensionista.site`)"
+      - "traefik.http.routers.kreativ-n8n.entrypoints=https"
+      - "traefik.http.routers.kreativ-n8n.tls=true"
+      - "traefik.http.routers.kreativ-n8n.tls.certresolver=letsencrypt"
+      - "traefik.http.services.kreativ-n8n.loadbalancer.server.port=5678"
+      # N8N usa WebSocket para o editor — necessário para funcionar via Traefik
+      - "traefik.http.middlewares.kreativ-n8n-ws.headers.customrequestheaders.Connection=keep-alive, Upgrade"
+      - "traefik.http.routers.kreativ-n8n.middlewares=kreativ-n8n-ws"
+      # HTTP → HTTPS
+      - "traefik.http.routers.kreativ-n8n-http.rule=Host(`n8n.extensionista.site`)"
+      - "traefik.http.routers.kreativ-n8n-http.entrypoints=http"
+      - "traefik.http.routers.kreativ-n8n-http.middlewares=kreativ-https-redirect"
     depends_on:
       postgres:
         condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  # ===========================================================================
+  # BOT: BUILDERBOT
+  # Apenas rede interna — BuilderBot registra o webhook na Evolution API
+  # N8N acessa via: http://builderbot:3008/api/send
+  # ===========================================================================
+
+  builderbot:
+    build:
+      context: ./apps/builderbot
+      dockerfile: Dockerfile
+    container_name: kreativ_builderbot
+    restart: always
+    environment:
+      PORT: ${BUILDERBOT_PORT:-3008}
+      NODE_ENV: production
+      DB_HOST: kreativ_postgres
+      DB_PORT: 5432
+      DB_USER: ${POSTGRES_USER}
+      DB_PASSWORD: ${POSTGRES_PASSWORD}
+      DB_NAME: ${POSTGRES_DB}
+      EVOLUTION_API_URL: http://evolution-api:8080
+      EVOLUTION_API_KEY: ${EVOLUTION_API_KEY}
+      EVOLUTION_INSTANCE: ${EVOLUTION_INSTANCE:-kreativ-bot}
+      N8N_WEBHOOK_BASE: http://n8n:5678/webhook
+      DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY}
+      DEEPSEEK_BASE_URL: https://api.deepseek.com
+      DEEPSEEK_MODEL: deepseek-chat
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      CHATWOOT_URL: ${CHATWOOT_URL:-}
+      CHATWOOT_API_TOKEN: ${CHATWOOT_API_TOKEN:-}
+      CHATWOOT_ACCOUNT_ID: ${CHATWOOT_ACCOUNT_ID:-2}
+      CHATWOOT_INBOX_ID: ${CHATWOOT_INBOX_ID:-1}
+
     networks:
       - kreativ_net
+    depends_on:
+      postgres:
+        condition: service_healthy
+      evolution-api:
+        condition: service_started
+
+  # ===========================================================================
+  # STORAGE: MINIO
+  # Console: https://files.extensionista.site
+  # API S3 (interna): http://minio:9000
+  # ===========================================================================
+
+  minio:
+    image: minio/minio:latest
+    container_name: kreativ_minio
+    restart: always
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
+      # URL pública do console (para links internos do MinIO)
+      MINIO_BROWSER_REDIRECT_URL: https://files.extensionista.site
+    volumes:
+      - minio_data:/data
+    networks:
+      - kreativ_net
+      - coolify
+    labels:
+      # Console web (porta 9001)
+      - "traefik.enable=true"
+      - "traefik.http.routers.kreativ-minio.rule=Host(`files.extensionista.site`)"
+      - "traefik.http.routers.kreativ-minio.entrypoints=https"
+      - "traefik.http.routers.kreativ-minio.tls=true"
+      - "traefik.http.routers.kreativ-minio.tls.certresolver=letsencrypt"
+      - "traefik.http.services.kreativ-minio.loadbalancer.server.port=9001"
+      # HTTP → HTTPS
+      - "traefik.http.routers.kreativ-minio-http.rule=Host(`files.extensionista.site`)"
+      - "traefik.http.routers.kreativ-minio-http.entrypoints=http"
+      - "traefik.http.routers.kreativ-minio-http.middlewares=kreativ-https-redirect"
+    healthcheck:
+      test: [ "CMD", "mc", "ready", "local" ]
+      interval: 30s
+      timeout: 20s
+      retries: 3
+  # ===========================================================================
+  # FASE 2 — DESCOMENTE APÓS UPGRADE DO VPS PARA ≥8GB RAM
+  # ===========================================================================
+
+  # ---------------------------------------------------------------------------
+  # PAINEL ADMIN: TOOLJET — https://admin.extensionista.site
+  # ---------------------------------------------------------------------------
+  # tooljet:
+  #   image: tooljet/tooljet:v2.23.0-ee
+  #   container_name: kreativ_tooljet
+  #   restart: always
+  #   environment:
+  #     LOCKBOX_KEY: ${LOCKBOX_KEY}
+  #     SECRET_KEY_BASE: ${TOOLJET_SECRET_KEY}
+  #     PG_HOST: postgres
+  #     PG_DB: ${TOOLJET_DB_NAME:-tooljet_db}
+  #     PG_USER: ${POSTGRES_USER}
+  #     PG_PASSWORD: ${POSTGRES_PASSWORD}
+  #     PG_PORT: 5432
+  #     TOOLJET_HOST: https://admin.extensionista.site
+  #     DEPLOYMENT_PLATFORM: docker
+  #   networks:
+  #     - kreativ_net
+  #     - coolify
+  #   labels:
+  #     - "traefik.enable=true"
+  #     - "traefik.http.routers.kreativ-tooljet.rule=Host(`admin.extensionista.site`)"
+  #     - "traefik.http.routers.kreativ-tooljet.entrypoints=https"
+  #     - "traefik.http.routers.kreativ-tooljet.tls=true"
+  #     - "traefik.http.routers.kreativ-tooljet.tls.certresolver=letsencrypt"
+  #     - "traefik.http.services.kreativ-tooljet.loadbalancer.server.port=80"
+  #   depends_on:
+  #     postgres:
+  #       condition: service_healthy
+
+  # ---------------------------------------------------------------------------
+  # DASHBOARDS: METABASE — https://dash.extensionista.site
+  # ---------------------------------------------------------------------------
+  # metabase:
+  #   image: metabase/metabase:latest
+  #   container_name: kreativ_metabase
+  #   restart: always
+  #   environment:
+  #     MB_DB_TYPE: postgres
+  #     MB_DB_DBNAME: metabase_db
+  #     MB_DB_PORT: 5432
+  #     MB_DB_USER: ${POSTGRES_USER}
+  #     MB_DB_PASS: ${POSTGRES_PASSWORD}
+  #     MB_DB_HOST: postgres
+  #     MB_SITE_URL: https://dash.extensionista.site
+  #   networks:
+  #     - kreativ_net
+  #     - coolify
+  #   labels:
+  #     - "traefik.enable=true"
+  #     - "traefik.http.routers.kreativ-metabase.rule=Host(`dash.extensionista.site`)"
+  #     - "traefik.http.routers.kreativ-metabase.entrypoints=https"
+  #     - "traefik.http.routers.kreativ-metabase.tls=true"
+  #     - "traefik.http.routers.kreativ-metabase.tls.certresolver=letsencrypt"
+  #     - "traefik.http.services.kreativ-metabase.loadbalancer.server.port=3000"
+  #   depends_on:
+  #     postgres:
+  #       condition: service_healthy
+
+  # ---------------------------------------------------------------------------
+  # ATENDIMENTO HUMANO: CHATWOOT — https://suporte.extensionista.site
+  # ---------------------------------------------------------------------------
+
+  chatwoot-app:
+    image: chatwoot/chatwoot:v3.15.0
+    container_name: kreativ_chatwoot_app
+    restart: always
+    command: bundle exec rails s -p 3000 -b 0.0.0.0
+    environment: &chatwoot_env
+      RAILS_ENV: production
+      SECRET_KEY_BASE: ${CHATWOOT_SECRET_KEY}
+      FRONTEND_URL: https://suporte.extensionista.site
+      DEFAULT_LOCALE: pt_BR
+      FORCE_SSL: "false"
+      REDIS_URL: redis://kreativ_redis:6379/3
+      POSTGRES_HOST: kreativ_postgres
+      POSTGRES_RECONNECT: "true"
+      POSTGRES_PORT: 5432
+      POSTGRES_DATABASE: chatwoot_db
+      POSTGRES_USERNAME: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      ACTIVE_STORAGE_SERVICE: local
+      INSTALLATION_ENV: docker
+      LOG_LEVEL: warn
+    networks:
+      - kreativ_net
+      - coolify
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.kreativ-chatwoot.rule=Host(`suporte.extensionista.site`)"
+      - "traefik.http.routers.kreativ-chatwoot.entrypoints=https"
+      - "traefik.http.routers.kreativ-chatwoot.tls=true"
+      - "traefik.http.routers.kreativ-chatwoot.tls.certresolver=letsencrypt"
+      - "traefik.http.services.kreativ-chatwoot.loadbalancer.server.port=3000"
+      - "traefik.http.routers.kreativ-chatwoot-http.rule=Host(`suporte.extensionista.site`)"
+      - "traefik.http.routers.kreativ-chatwoot-http.entrypoints=http"
+      - "traefik.http.routers.kreativ-chatwoot-http.middlewares=kreativ-https-redirect"
+      - "traefik.http.middlewares.kreativ-https-redirect.redirectscheme.scheme=https"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  chatwoot-sidekiq:
+    image: chatwoot/chatwoot:v3.15.0
+    container_name: kreativ_chatwoot_sidekiq
+    restart: always
+    command: bundle exec sidekiq -C config/sidekiq.yml
+    environment: *chatwoot_env
+    networks:
+      - kreativ_net
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  # ---------------------------------------------------------------------------
+  # SMTP: POSTFIX — email via extensionista.site
+  # ---------------------------------------------------------------------------
+  postfix:
+    image: boky/postfix:latest
+    container_name: kreativ_postfix
+    restart: always
+    environment:
+      HOSTNAME: mail.extensionista.site
+      ALLOWED_SENDER_DOMAINS: extensionista.site
+      POSTFIX_myhostname: mail.extensionista.site
+      POSTFIX_mydomain: extensionista.site
+      POSTFIX_myorigin: extensionista.site
+      POSTFIX_inet_interfaces: all
+      POSTFIX_message_size_limit: "20480000"
+    networks:
+      - kreativ_net
+      - coolify
 
 volumes:
   postgres_data:
   redis_data:
   n8n_data:
-
-networks:
-  kreativ_net:
-    driver: bridge
+  evolution_data:
+  minio_data:

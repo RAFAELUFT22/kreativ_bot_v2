@@ -1,0 +1,48 @@
+  Guia para Construir o "GRUPO 3: Menu Principal"
+
+  Contexto: Este grupo é acionado quando a condição aluno_status == 'em_andamento' do seu roteador no GRUPO 1 é verdadeira. Certifique-se de que a saída correspondente no
+  seu bloco "Condition" esteja conectada ao primeiro bloco abaixo.
+
+   1. Adicione o Bloco de Texto (Boas-vindas de Retorno):
+       * Tipo: Text
+       * Conteúdo:
+          > Oi {{aluno_nome}}, que bom te ver de volta! 👋
+       * Importante: O uso da variável {{aluno_nome}} (que o n8n nos enviou) personaliza a saudação e cria uma conexão muito melhor com o aluno.
+
+   2. Adicione o Bloco de Botões (Menu de Opções):
+       * Tipo: Buttons
+       * Mensagem: O que você gostaria de fazer agora?
+       * Conecte a saída do bloco de texto anterior a este bloco de botões.
+       * Crie 3 botões:
+           1. Continuar de onde parei
+           2. Revisar um módulo
+           3. Preciso de ajuda
+
+   3. Configure o Botão "Continuar de onde parei" (A Parte Dinâmica):
+       * Este é o botão mais importante. Ele não vai para um bloco fixo, mas sim para um bloco dinâmico que o n8n nos informou.
+       * Adicione um bloco do tipo `Jump` (ou "Go to block").
+       * Conecte a saída do botão "Continuar de onde parei" a este bloco Jump.
+       * Configure o Bloco `Jump`:
+           * Em vez de selecionar um grupo ou bloco específico da lista, procure uma opção como "Jump to a block ID from a variable" (Pular para um bloco a partir de uma
+             variável).
+           * No campo de variável, insira: {{proximo_bloco_curso}}
+           * Como funciona: O n8n, ao verificar o progresso do aluno, retornará o ID do primeiro bloco do próximo módulo (ex: m1-start-block). Este bloco Jump lerá essa
+             variável e levará o aluno exatamente para o lugar certo, seja o Módulo 1, 2, 3, etc.
+
+   4. Configure o Botão "Revisar um módulo":
+       * Adicione um novo bloco de `Text`.
+       * Nomeie o bloco: menu-revisao (para facilitar a localização).
+       * Conteúdo:
+          > Certo! Aqui você poderá escolher qual módulo quer rever.
+          >
+          > (TODO: Adicione botões aqui, um para cada módulo que você criar, ex: "Revisar Módulo 1", "Revisar Módulo 2").
+       * Conecte a saída do botão "Revisar um módulo" a este novo bloco menu-revisao.
+
+   5. Configure o Botão "Preciso de ajuda":
+       * Adicione um novo bloco de `Text`.
+       * Nomeie o bloco: menu-ajuda.
+       * Conteúdo:
+          > Sem problemas. Aqui você pode encontrar respostas para perguntas frequentes ou um contato para falar com o suporte.
+          >
+          > (TODO: Detalhe aqui as opções de ajuda).
+       * Conecte a saída do botão "Preciso de ajuda" a este novo bloco menu-ajuda.

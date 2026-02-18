@@ -1,0 +1,64 @@
+ Guia para Construir o "GRUPO 1: Início & Roteamento" no Seu Typebot (v1.x)
+
+   1. Crie um Novo Typebot:
+       * No seu painel do Typebot, crie um novo Typebot do zero. Dê o nome que desejar (ex: "Curso Piloto IA").
+
+   2. Configure as Variáveis (se sua versão permitir ou ignore se for criada dinamicamente):
+       * Vá para a seção de variáveis (geralmente um ícone de fx ou </>).
+       * Crie as seguintes variáveis (deixe-as vazias, elas serão preenchidas pelo n8n):
+           * aluno_status (Tipo: Texto)
+           * aluno_nome (Tipo: Texto)
+           * proximo_bloco_curso (Tipo: Texto)
+
+   3. Renomeie o Grupo Inicial:
+       * O Typebot já começa com um grupo padrão. Renomeie-o para: GRUPO 1: Início & Roteamento
+
+   4. Crie o Bloco "Start" (Ponto de Entrada):
+       * Este já deve existir por padrão. É o bloco que inicia a conversa.
+
+   5. Adicione o Bloco "Webhook" (Chamada ao n8n):
+       * Arraste e solte um bloco de "Webhook" para o grupo.
+       * Conecte a saída do bloco "Start" a este novo bloco "Webhook".
+       * Configure o Webhook:
+           * Nome: API: Verificar Estado do Aluno
+           * URL: https://SEU_N8N/webhook/gestao-estado-curso-ia (substitua pela URL real do seu webhook do n8n)
+           * Método: POST
+           * Body:
+   1             { "whatsapp_id": "{{user.id}}" }
+           * Content Type: application/json
+           * Salvar Resposta: Mapeie as chaves da resposta do n8n para as variáveis que criamos:
+               * status (do n8n) -> aluno_status (no Typebot)
+               * nome (do n8n) -> aluno_nome (no Typebot)
+               * proximo_bloco (do n8n) -> proximo_bloco_curso (no Typebot)
+           * Em caso de falha: Na aba de "Errors" ou "On Failure", conecte este bloco a um novo bloco de "Texto" que você criará para exibir a mensagem de erro da API (Ex:
+             "Opa, nosso sistema parece estar fora do ar...").
+
+   6. Adicione o Bloco "Condition" (Roteador Lógico):
+       * Arraste e solte um bloco de "Condition" para o grupo.
+       * Conecte a saíd a do bloco "Webhook" a este novo bloco "Condition".
+       * Configure as Condições:
+           * Condição 1 (Novo Aluno):
+               * Se {{aluno_status}} for igual a novo
+               * Saída: Crie uma nova rota. (Ainda não conecte, faremos depois).
+           * Condição 2 (Aluno em Andamento):
+               * Se {{aluno_status}} for igual a em_andamento
+               * Saída: Crie uma nova rota.
+           * Condição 3 (Aluno Concluído):
+               * Se {{aluno_status}} for igual a concluido
+               * Saída: Crie uma nova rota.
+           * Default (Qualquer Outro Caso):
+               * Conecte a saída "Else" a um bloco de "Texto" de Fallback Geral (Ex: "Hum, não entendi o que você quis dizer.").
+
+   7. Crie os Grupos de Destino (Destinos Iniciais):
+       * Crie um novo grupo e renomeie para: GRUPO 2: Boas-vindas (Módulo 0)
+       * Crie um novo grupo e renomeie para: GRUPO 3: Menu Principal
+       * Crie um novo grupo e renomeie para: GRUPO 8: Finalização
+       * Crie um novo grupo e renomeie para: GRUPO 9: Erros & Utilitários (separe o texto de erro da API e o fallback geral aqui).
+
+   8. Conecte as Saídas do Roteador (Condition):
+       * Volte ao bloco "Condition" (logic-router).
+       * Conecte a saída "novo" ao primeiro bloco do GRUPO 2: Boas-vindas (Módulo 0).
+       * Conecte a saída "em_andamento" ao primeiro bloco do GRUPO 3: Menu Principal.
+       * Conecte a saída "concluido" ao primeiro bloco do GRUPO 8: Finalização.
+
+  ---

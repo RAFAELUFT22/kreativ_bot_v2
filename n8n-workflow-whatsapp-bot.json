@@ -1,0 +1,224 @@
+{
+  "name": "WhatsApp Bot - Kreativ Educação",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "whatsapp",
+        "options": {}
+      },
+      "id": "a1b2c3d4-0001-0001-0001-000000000001",
+      "name": "Webhook WhatsApp",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [240, 300],
+      "webhookId": "whatsapp-kreativ-bot"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "id": "cond-event",
+              "leftValue": "={{ $json.body.event }}",
+              "rightValue": "messages.upsert",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            },
+            {
+              "id": "cond-fromme",
+              "leftValue": "={{ String($json.body.data.key.fromMe) }}",
+              "rightValue": "false",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "a1b2c3d4-0001-0001-0001-000000000002",
+      "name": "É mensagem válida?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [460, 300]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "assign-phone",
+              "name": "phone",
+              "value": "={{ $json.body.data.key.remoteJid.split('@')[0] }}",
+              "type": "string"
+            },
+            {
+              "id": "assign-message",
+              "name": "message",
+              "value": "={{ $json.body.data.message.conversation ?? $json.body.data.message.extendedTextMessage?.text ?? '' }}",
+              "type": "string"
+            },
+            {
+              "id": "assign-name",
+              "name": "pushName",
+              "value": "={{ $json.body.data.pushName ?? 'Aluno' }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "a1b2c3d4-0001-0001-0001-000000000003",
+      "name": "Extrair dados",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [680, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "const message = $input.item.json.message;\nconst pushName = $input.item.json.pushName;\n\nconst systemPrompt = `Você é um assistente educacional da Kreativ Educação, uma plataforma de ensino via WhatsApp.\\n\\nRegras:\\n- Responda sempre em português brasileiro\\n- Seja amigável, didático e encorajador\\n- Respostas concisas (máximo 3 parágrafos para WhatsApp)\\n- Se o aluno perguntar sobre módulos, quizzes ou certificados, oriente-o\\n- Se não souber algo específico do curso, diga que irá verificar com a equipe`;\n\nreturn [{\n  json: {\n    phone: $input.item.json.phone,\n    message: message,\n    pushName: pushName,\n    geminiPayload: {\n      system_instruction: {\n        parts: [{ text: systemPrompt }]\n      },\n      contents: [\n        {\n          role: \"user\",\n          parts: [{ text: message }]\n        }\n      ],\n      generationConfig: {\n        temperature: 0.7,\n        maxOutputTokens: 1024\n      }\n    }\n  }\n}];"
+      },
+      "id": "a1b2c3d4-0001-0001-0001-000000000004",
+      "name": "Montar payload Gemini",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [900, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=AIzaSyCfZHfrv7bbcKmXeWWJnUJioWqfFnOnXzQ",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.geminiPayload) }}",
+        "options": {}
+      },
+      "id": "a1b2c3d4-0001-0001-0001-000000000005",
+      "name": "Gemini AI",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1120, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "const phone = $('Extrair dados').item.json.phone;\nconst candidates = $input.item.json.candidates;\n\nif (!candidates || candidates.length === 0) {\n  return [{ json: { phone, aiResponse: 'Desculpe, não consegui processar sua mensagem. Tente novamente.' } }];\n}\n\nconst aiResponse = candidates[0]?.content?.parts?.[0]?.text ?? 'Desculpe, ocorreu um erro. Tente novamente.';\n\nreturn [{ json: { phone, aiResponse } }];"
+      },
+      "id": "a1b2c3d4-0001-0001-0001-000000000006",
+      "name": "Extrair resposta IA",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1340, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://kreativ_evolution:8080/message/sendText/europs",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "EXr5OuEE2sBMbRo94LtWQfofvEF1gHUM"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ number: $json.phone, text: $json.aiResponse }) }}",
+        "options": {}
+      },
+      "id": "a1b2c3d4-0001-0001-0001-000000000007",
+      "name": "Enviar resposta WhatsApp",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1560, 300]
+    }
+  ],
+  "connections": {
+    "Webhook WhatsApp": {
+      "main": [
+        [
+          {
+            "node": "É mensagem válida?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "É mensagem válida?": {
+      "main": [
+        [
+          {
+            "node": "Extrair dados",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extrair dados": {
+      "main": [
+        [
+          {
+            "node": "Montar payload Gemini",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Montar payload Gemini": {
+      "main": [
+        [
+          {
+            "node": "Gemini AI",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Gemini AI": {
+      "main": [
+        [
+          {
+            "node": "Extrair resposta IA",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extrair resposta IA": {
+      "main": [
+        [
+          {
+            "node": "Enviar resposta WhatsApp",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner"
+  },
+  "meta": {
+    "instanceId": "kreativ-educacao"
+  }
+}

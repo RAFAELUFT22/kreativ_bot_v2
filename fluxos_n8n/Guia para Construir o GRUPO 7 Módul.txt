@@ -1,0 +1,69 @@
+  Guia para Construir o "GRUPO 7: Módulo 4 - Segurança Digital com IA"
+
+  Contexto: O aluno é direcionado para cá pelo Jump do final do Módulo 3.
+
+   1. Adicione o Bloco de Texto (Título do Módulo):
+       * Tipo: Text
+       * Nomeie este bloco: m4-start-block.
+       * Conteúdo:
+          > Módulo 4: Sua Família Mais Segura na Internet! 🛡️🔒
+          >
+          > Este é o nosso último módulo! Vamos aprender a usar a IA para identificar golpes, criar senhas fortes e navegar com mais segurança.
+
+   2. Adicione o Bloco de Texto (Exemplo de Golpe):
+       * Tipo: Text
+       * Conteúdo:
+          > Você recebe uma mensagem estranha no WhatsApp dizendo que você ganhou um prêmio ou que um parente precisa de dinheiro urgente. Isso pode ser um golpe!
+          >
+          > Como a IA ajuda? Você pode copiar a mensagem suspeita e perguntar para a IA:
+          >
+          > "A mensagem 'Olá, você ganhou R$5.000 no pix, clique no link para receber' é confiável?"
+       * Conecte a saída do bloco de título (Passo 1) a este bloco.
+
+   3. Adicione o Bloco de Áudio (Dica de Ouro - Senhas):
+       * Tipo: Audio
+       * Instrução: Grave e faça o upload da mensagem: "Outra coisa super importante são as senhas! Nunca use datas de aniversário ou '123456'. Peça para a IA te ajudar a
+         criar senhas fortes. É só pedir: 'Me dê um exemplo de senha forte com 8 letras, números e símbolos'."
+       * Conecte a saída do bloco de texto (Passo 2) a este bloco.
+
+   4. Adicione o Bloco de Texto (Atividade):
+       * Tipo: Text
+       * Conteúdo:
+          > Sua vez!
+          >
+          > Peça para a IA te dar três dicas para identificar um e-mail falso. Leia as dicas e pense se você já viu algo parecido por aí.
+       * Conecte a saída do bloco de áudio (Passo 3) a este bloco.
+
+   5. Adicione o Bloco de Botões (Confirmação da Atividade):
+       * Tipo: Buttons
+       * Mensagem: As dicas foram úteis para você?
+       * Botões:
+           1. Sim, aprendi algo novo!
+           2. Eu já conhecia essas dicas
+       * Conecte a saída do bloco de atividade (Passo 4) a este bloco.
+
+   6. Crie o Bloco de Transição para o Fim:
+       * Adicione um novo bloco de Text.
+       * Conteúdo: Perfeito! O mais importante é estar sempre atento.
+       * Conecte as saídas de ambos os botões ("Sim, aprendi algo novo!" e "Eu já conhecia essas dicas") a este novo bloco.
+
+   7. Adicione o Bloco Webhook (Salvar Progresso Final):
+       * Tipo: Webhook
+       * Nome: API: Concluir Curso
+       * URL: https://SEU_N8N/webhook/atualizar-progresso
+       * Body: { "aluno_id": "{{user.id}}", "curso_id": "IA_PILOTO", "bloco_concluido": "CURSO_COMPLETO" }
+       * Conecte a saída do bloco de transição (Passo 6) a este webhook.
+
+   8. Adicione o Bloco de Texto (Parabéns e Certificado):
+       * Tipo: Text
+       * Conteúdo:
+          > PARABÉNS por concluir o curso "Minha Família e Eu na Era Digital"! 🎉🎓
+          >
+          > Você deu um passo muito importante! Em breve, nossa equipe entrará em contato para os próximos passos e para a entrega do seu certificado de conclusão. Continue
+  praticando o que aprendeu!
+       * Conecte a saída do webhook (Passo 7) a este bloco.
+
+   9. Adicione o Bloco `Jump` para o Grupo Final:
+       * Tipo: Jump
+       * Instrução: Configure este bloco para pular para o primeiro bloco do GRUPO 8: Finalização.
+       * Conecte a saída do bloco de parabéns (Passo 8) a este bloco Jump.
