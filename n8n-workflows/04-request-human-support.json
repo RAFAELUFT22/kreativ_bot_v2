@@ -1,0 +1,109 @@
+{
+  "name": "BuilderBot: request-human-support",
+  "nodes": [
+    {
+      "id": "wh-support",
+      "name": "Webhook request-human-support",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        240,
+        300
+      ],
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "request-human-support",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "webhookId": "kreativ-request-human-support"
+    },
+    {
+      "id": "pg-pause-bot",
+      "name": "Pausar bot e criar sessão",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        460,
+        300
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "WITH upserted AS (\n  INSERT INTO students (phone, attendance_status)\n  VALUES ('{{ $json.body.phone ?? $json.phone }}', 'human')\n  ON CONFLICT (phone) DO UPDATE\n    SET attendance_status = 'human', updated_at = NOW()\n  RETURNING id\n)\nINSERT INTO support_sessions (student_id, reason)\nSELECT id, '{{ ($json.body.reason ?? $json.reason ?? 'Solicitação via bot') | replace(\"'\", \"''\") }}'\nFROM upserted\nRETURNING id",
+        "options": {}
+      },
+      "credentials": {
+        "postgres": {
+          "id": "lJaeEy4CpHbhgMAp",
+          "name": "Kreativ PostgreSQL"
+        }
+      },
+      "continueOnFail": true
+    },
+    {
+      "id": "code-notify",
+      "name": "Montar resposta suporte",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        680,
+        300
+      ],
+      "parameters": {
+        "jsCode": "// Em produção: adicionar notificação ao tutor aqui\n// Ex: POST para Telegram, e-mail, Chatwoot, etc.\n\n// Por enquanto retorna resposta padrão\nreturn [{\n  json: {\n    success: true,\n    tutorName: 'Equipe Kreativ',\n    estimatedWait: 'até 30 minutos (horário comercial)'\n  }\n}];"
+      }
+    },
+    {
+      "id": "respond-support",
+      "name": "Responder BuilderBot",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [
+        900,
+        300
+      ],
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify($json) }}"
+      }
+    }
+  ],
+  "connections": {
+    "Webhook request-human-support": {
+      "main": [
+        [
+          {
+            "node": "Pausar bot e criar sessão",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Pausar bot e criar sessão": {
+      "main": [
+        [
+          {
+            "node": "Montar resposta suporte",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Montar resposta suporte": {
+      "main": [
+        [
+          {
+            "node": "Responder BuilderBot",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  }
+}

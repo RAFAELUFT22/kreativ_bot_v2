@@ -1,0 +1,282 @@
+{
+  "name": "WhatsApp Router - Kreativ Educação",
+  "nodes": [
+    {
+      "id": "n-webhook",
+      "name": "Webhook WhatsApp",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [240, 300],
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "whatsapp",
+        "options": {}
+      },
+      "webhookId": "whatsapp-kreativ-bot"
+    },
+    {
+      "id": "n-filter",
+      "name": "É mensagem válida?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [460, 300],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 1
+          },
+          "conditions": [
+            {
+              "id": "cond-event",
+              "leftValue": "={{ $json.body.event }}",
+              "rightValue": "messages.upsert",
+              "operator": { "type": "string", "operation": "equals" }
+            },
+            {
+              "id": "cond-fromme",
+              "leftValue": "={{ String($json.body.data.key.fromMe) }}",
+              "rightValue": "false",
+              "operator": { "type": "string", "operation": "equals" }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "n-extract",
+      "name": "Extrair dados",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [680, 300],
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "assign-phone",
+              "name": "phone",
+              "value": "={{ $json.body.data.key.remoteJid.split('@')[0] }}",
+              "type": "string"
+            },
+            {
+              "id": "assign-message",
+              "name": "message",
+              "value": "={{ $json.body.data.message?.conversation ?? $json.body.data.message?.extendedTextMessage?.text ?? '' }}",
+              "type": "string"
+            },
+            {
+              "id": "assign-pushname",
+              "name": "pushName",
+              "value": "={{ $json.body.data.pushName ?? 'Aluno' }}",
+              "type": "string"
+            },
+            {
+              "id": "assign-payload",
+              "name": "originalPayload",
+              "value": "={{ $json.body }}",
+              "type": "object"
+            }
+          ]
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "n-db",
+      "name": "Buscar estado do usuário",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [900, 300],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT attendance_status, current_module FROM students WHERE phone = '{{ $json.phone }}' LIMIT 1",
+        "options": {}
+      },
+      "credentials": {
+        "postgres": {
+          "id": "lJaeEy4CpHbhgMAp",
+          "name": "Kreativ PostgreSQL"
+        }
+      },
+      "continueOnFail": true
+    },
+    {
+      "id": "n-route",
+      "name": "Determinar rota",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1120, 300],
+      "parameters": {
+        "jsCode": "const phone = $('Extrair dados').item.json.phone;\nconst message = $('Extrair dados').item.json.message;\nconst pushName = $('Extrair dados').item.json.pushName;\nconst originalPayload = $('Extrair dados').item.json.originalPayload;\n\nlet route = 'gemini'; // default: novo usuário ou chat livre\n\ntry {\n  const rows = $input.all();\n  const dbRow = rows[0]?.json;\n\n  // DB retornou dados válidos (não só erro ou vazio)\n  if (dbRow && dbRow.attendance_status !== undefined) {\n    const status = dbRow.attendance_status;\n    const mod = parseInt(String(dbRow.current_module ?? '0'), 10);\n\n    if (status === 'human') {\n      route = 'paused'; // tutor atendendo, bot silencioso\n    } else if (mod > 0) {\n      route = 'builderbot'; // em módulo/quiz estruturado\n    }\n    // mod=0 e status!='human' → gemini (boas-vindas / chat livre)\n  }\n} catch(e) {\n  // erro no DB → fallback gemini\n}\n\nreturn [{ json: { phone, message, pushName, originalPayload, route } }];"
+      }
+    },
+    {
+      "id": "n-switch",
+      "name": "Rotear mensagem",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3,
+      "position": [1340, 300],
+      "parameters": {
+        "mode": "rules",
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "strict" },
+                "conditions": [
+                  {
+                    "id": "rule-paused",
+                    "leftValue": "={{ $json.route }}",
+                    "rightValue": "paused",
+                    "operator": { "type": "string", "operation": "equals" }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "Paused"
+            },
+            {
+              "conditions": {
+                "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "strict" },
+                "conditions": [
+                  {
+                    "id": "rule-builderbot",
+                    "leftValue": "={{ $json.route }}",
+                    "rightValue": "builderbot",
+                    "operator": { "type": "string", "operation": "equals" }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "BuilderBot"
+            }
+          ]
+        },
+        "options": { "fallbackOutput": "extra" }
+      }
+    },
+    {
+      "id": "n-paused",
+      "name": "Bot pausado (tutor ativo)",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [1560, 120],
+      "parameters": {}
+    },
+    {
+      "id": "n-builderbot",
+      "name": "Encaminhar BuilderBot",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1560, 300],
+      "parameters": {
+        "method": "POST",
+        "url": "http://kreativ_builderbot:3008/",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.originalPayload) }}",
+        "options": { "timeout": 30000 }
+      }
+    },
+    {
+      "id": "n-gemini-payload",
+      "name": "Montar payload Gemini",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1560, 480],
+      "parameters": {
+        "jsCode": "const message = $input.item.json.message;\nconst pushName = $input.item.json.pushName;\n\nconst systemPrompt = `Você é um assistente educacional da Kreativ Educação, plataforma de ensino via WhatsApp.\\n\\nRegras:\\n- Responda sempre em português brasileiro\\n- Seja amigável, didático e encorajador\\n- Respostas concisas (máximo 3 parágrafos para WhatsApp)\\n- Se o aluno quiser aprender, diga que ele pode responder MODULO para iniciar a trilha estruturada\\n- Se não souber algo específico, diga que verificará com a equipe`;\n\nreturn [{\n  json: {\n    phone: $input.item.json.phone,\n    message,\n    pushName,\n    geminiPayload: {\n      system_instruction: { parts: [{ text: systemPrompt }] },\n      contents: [{ role: 'user', parts: [{ text: message }] }],\n      generationConfig: { temperature: 0.7, maxOutputTokens: 1024 }\n    }\n  }\n}];"
+      }
+    },
+    {
+      "id": "n-gemini",
+      "name": "Gemini AI",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1780, 480],
+      "parameters": {
+        "method": "POST",
+        "url": "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=AIzaSyCfZHfrv7bbcKmXeWWJnUJioWqfFnOnXzQ",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.geminiPayload) }}",
+        "options": {}
+      }
+    },
+    {
+      "id": "n-extract-ai",
+      "name": "Extrair resposta IA",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [2000, 480],
+      "parameters": {
+        "jsCode": "const phone = $('Determinar rota').item.json.phone;\nconst candidates = $input.item.json.candidates;\n\nif (!candidates || candidates.length === 0) {\n  return [{ json: { phone, aiResponse: 'Desculpe, não consegui processar sua mensagem. Tente novamente.' } }];\n}\n\nconst aiResponse = candidates[0]?.content?.parts?.[0]?.text ?? 'Desculpe, ocorreu um erro. Tente novamente.';\n\nreturn [{ json: { phone, aiResponse } }];"
+      }
+    },
+    {
+      "id": "n-send",
+      "name": "Enviar resposta WhatsApp",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [2220, 480],
+      "parameters": {
+        "method": "POST",
+        "url": "http://kreativ_evolution:8080/message/sendText/europs",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "apikey", "value": "EXr5OuEE2sBMbRo94LtWQfofvEF1gHUM" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ number: $json.phone, text: $json.aiResponse }) }}",
+        "options": {}
+      }
+    }
+  ],
+  "connections": {
+    "Webhook WhatsApp": {
+      "main": [[{ "node": "É mensagem válida?", "type": "main", "index": 0 }]]
+    },
+    "É mensagem válida?": {
+      "main": [[{ "node": "Extrair dados", "type": "main", "index": 0 }]]
+    },
+    "Extrair dados": {
+      "main": [[{ "node": "Buscar estado do usuário", "type": "main", "index": 0 }]]
+    },
+    "Buscar estado do usuário": {
+      "main": [[{ "node": "Determinar rota", "type": "main", "index": 0 }]]
+    },
+    "Determinar rota": {
+      "main": [[{ "node": "Rotear mensagem", "type": "main", "index": 0 }]]
+    },
+    "Rotear mensagem": {
+      "main": [
+        [{ "node": "Bot pausado (tutor ativo)", "type": "main", "index": 0 }],
+        [{ "node": "Encaminhar BuilderBot", "type": "main", "index": 0 }],
+        [{ "node": "Montar payload Gemini", "type": "main", "index": 0 }]
+      ]
+    },
+    "Montar payload Gemini": {
+      "main": [[{ "node": "Gemini AI", "type": "main", "index": 0 }]]
+    },
+    "Gemini AI": {
+      "main": [[{ "node": "Extrair resposta IA", "type": "main", "index": 0 }]]
+    },
+    "Extrair resposta IA": {
+      "main": [[{ "node": "Enviar resposta WhatsApp", "type": "main", "index": 0 }]]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner"
+  }
+}
