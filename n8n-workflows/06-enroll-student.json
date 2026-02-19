@@ -69,7 +69,7 @@
     {
       "parameters": {
         "method": "POST",
-        "url": "http://10.0.1.11:3000/api/v1/accounts/2/contacts",
+        "url": "http://kreativ_chatwoot_app:3000/api/v1/accounts/2/contacts",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [

@@ -131,7 +131,7 @@
     {
       "parameters": {
         "method": "POST",
-        "url": "http://10.0.1.11:3000/api/v1/accounts/2/conversations/{{$json.convId}}/messages",
+        "url": "http://kreativ_chatwoot_app:3000/api/v1/accounts/2/conversations/{{$json.convId}}/messages",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
@@ -158,7 +158,7 @@
     {
       "parameters": {
         "method": "POST",
-        "url": "http://10.0.1.4:5678/webhook/update-chatwoot-label",
+        "url": "http://kreativ_n8n:5678/webhook/update-chatwoot-label",
         "sendBody": true,
         "specifyBody": "json",
         "jsonBody": "={{ JSON.stringify({\n  phone: $('Extrair Evento').item.json.phone,\n  label: 'em-andamento-m' + ($('Retomar Bot no DB').item.json.current_module || 1)\n}) }}",

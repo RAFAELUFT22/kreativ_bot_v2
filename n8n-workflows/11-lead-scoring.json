@@ -29,7 +29,7 @@
       ],
       "parameters": {
         "operation": "executeQuery",
-        "query": "WITH progress AS (\n  SELECT s.phone,\n    COUNT(sp.module_id) FILTER (WHERE sp.completed = true) AS done,\n    COUNT(m.id) AS total\n  FROM students s\n  LEFT JOIN student_progress sp ON sp.student_phone = s.phone\n  LEFT JOIN modules m ON m.course_id = (SELECT course_id FROM modules WHERE id = sp.module_id LIMIT 1)\n  WHERE s.phone = '{{ $json.body.phone }}'\n  GROUP BY s.phone\n)\nUPDATE students SET\n  lead_score = LEAST(100, ROUND((done::float / NULLIF(total,0)) * 100)),\n  updated_at = NOW()\nFROM progress WHERE students.phone = progress.phone\nRETURNING students.phone, students.lead_score, students.name;",
+        "query": "WITH stats AS (\n  SELECT \n    s.phone,\n    COALESCE(array_length(s.completed_modules, 1), 0) as done,\n    (SELECT COUNT(*) FROM modules WHERE course_id = s.course_id::text OR course_id = s.course_id::varchar) as total\n  FROM students s\n  WHERE s.phone = '{{ $json.body.phone }}'\n)\nUPDATE students SET\n  lead_score = LEAST(100, ROUND((stats.done::float / NULLIF(stats.total,0)) * 100)),\n  updated_at = NOW()\nFROM stats WHERE students.phone = stats.phone\nRETURNING students.phone, students.lead_score, students.name;",
         "options": {}
       },
       "credentials": {
@@ -77,6 +77,23 @@
         "specifyBody": "json",
         "jsonBody": "={{ JSON.stringify({ number: $json.phone, text: $json.message }) }}"
       }
+    },
+    {
+      "id": "http-update-label",
+      "name": "Atualizar Label Chatwoot",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        680,
+        500
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "http://kreativ_n8n:5678/webhook/update-chatwoot-label",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ phone: $json.phone, module_number: $('Webhook: módulo concluído').item?.json?.body?.moduleNumber }) }}"
+      }
     }
   ],
   "connections": {
@@ -96,6 +113,11 @@
         [
           {
             "node": "Formatar mensagem conquista",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Atualizar Label Chatwoot",
             "type": "main",
             "index": 0
           }
