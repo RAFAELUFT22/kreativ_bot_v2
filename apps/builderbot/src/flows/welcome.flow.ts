@@ -66,9 +66,9 @@ export const welcomeFlow = addKeyword(EVENTS.WELCOME)
                 case 'CERTIFICADO': {
                     await flowDynamic([
                         { body: '🔍 Verificando seus certificados...' },
-                        { body: 'Em breve você poderá consultar seus certificados aqui! Conclua todos os módulos para emitir. 🏆' },
+                        { body: 'Em breve você poderá consultar seus certificados aqui! Conclua todos os módulos para emitir. 🏆\n\nResponda *1* para iniciar a trilha ou faça uma pergunta!' },
                     ])
-                    break
+                    return
                 }
 
                 case 'PARAR':
@@ -84,7 +84,7 @@ export const welcomeFlow = addKeyword(EVENTS.WELCOME)
                     await flowDynamic([{
                         body: '⏸️ Tudo bem! Seu progresso foi salvo.\n\nQuando quiser retomar, é só responder *CONTINUAR* aqui nesta conversa. A gente não esquece onde você parou! 💪',
                     }])
-                    break
+                    return
                 }
 
                 case 'MENU':
@@ -95,11 +95,11 @@ export const welcomeFlow = addKeyword(EVENTS.WELCOME)
                     await flowDynamic([{
                         body: 'Escolha uma opção:\n\n*1* - Iniciar a trilha\n*2* - Continuar de onde parei\n*3* - Falar com um tutor\n*PARAR* - Pausar para depois\n\nOu me faça qualquer pergunta! 😊',
                     }])
-                    break
+                    return
                 }
 
                 default:
-                    await aiHandler(ctx, { gotoFlow, flowDynamic, state } as BotMethods)
+                    return aiHandler(ctx, { gotoFlow, flowDynamic, state } as BotMethods)
             }
         }
     )

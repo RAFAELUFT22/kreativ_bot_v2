@@ -60,6 +60,10 @@ export const humanSupportFlow = addKeyword(HUMAN_KEYWORDS)
                         },
                     ])
                 }
+
+                // CRM: Track tutor request (+5 points)
+                await mcpClient.trackInteraction(phone, 5, 'pedido_suporte')
+
             } catch (err) {
                 console.error('[humanSupportFlow] Erro ao acionar N8N:', err)
                 await flowDynamic([

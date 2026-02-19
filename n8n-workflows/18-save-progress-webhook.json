@@ -19,17 +19,30 @@
             "webhookId": "kreativ-save-progress"
         },
         {
-            "id": "pg-update",
-            "name": "Atualizar DB",
-            "type": "n8n-nodes-base.postgres",
-            "typeVersion": 2.6,
+            "id": "code-extract",
+            "name": "Extrair e validar dados",
+            "type": "n8n-nodes-base.code",
+            "typeVersion": 2,
             "position": [
                 460,
                 300
             ],
             "parameters": {
+                "jsCode": "const body = $input.item.json.body ?? $input.item.json;\nconst phone = String(body.phone ?? '').replace(/\\D/g, '');\nconst moduleId = parseInt(String(body.moduleId ?? '0'), 10);\nconst score = Math.max(0, Math.min(100, parseInt(String(body.score ?? '0'), 10)));\nconst completed = body.completed === true || body.completed === 'true';\n\nif (!phone || !moduleId) {\n  return [{ json: { error: true, message: 'phone e moduleId são obrigatórios', phone, moduleId, score, completed } }];\n}\n\nreturn [{ json: { phone, moduleId, score, completed, error: false } }];"
+            }
+        },
+        {
+            "id": "pg-update",
+            "name": "Atualizar DB",
+            "type": "n8n-nodes-base.postgres",
+            "typeVersion": 2.6,
+            "position": [
+                680,
+                300
+            ],
+            "parameters": {
                 "operation": "executeQuery",
-                "query": "UPDATE students \nSET \n  scores = scores || jsonb_build_object('module_' || {{ $json.body.moduleId }}, {{ $json.body.score }}),\n  completed_modules = CASE \n    WHEN {{ $json.body.completed ?? false }} AND NOT ({{ $json.body.moduleId }} = ANY(completed_modules))\n    THEN array_append(completed_modules, {{ $json.body.moduleId }})\n    ELSE completed_modules\n  END,\n  current_module = GREATEST(current_module, {{ $json.body.moduleId }} + CASE WHEN {{ $json.body.completed ?? false }} THEN 1 ELSE 0 END),\n  updated_at = NOW()\nWHERE phone = '{{ $json.body.phone }}'",
+                "query": "UPDATE students SET scores = COALESCE(scores, '{}'::jsonb) || jsonb_build_object('module_' || {{ $json.moduleId }}, {{ $json.score }}), completed_modules = CASE WHEN {{ $json.completed }} AND NOT ({{ $json.moduleId }} = ANY(COALESCE(completed_modules, '{}'))) THEN array_append(COALESCE(completed_modules, '{}'), {{ $json.moduleId }}) ELSE COALESCE(completed_modules, '{}') END, current_module = GREATEST(COALESCE(current_module, 1), {{ $json.moduleId }} + CASE WHEN {{ $json.completed }} THEN 1 ELSE 0 END), updated_at = NOW() WHERE phone = '{{ $json.phone }}' RETURNING phone, current_module, lead_score",
                 "options": {}
             },
             "credentials": {
@@ -41,12 +54,46 @@
             "continueOnFail": true
         },
         {
+            "id": "check-completed",
+            "name": "Completou Módulo?",
+            "type": "n8n-nodes-base.if",
+            "typeVersion": 1,
+            "position": [
+                900,
+                300
+            ],
+            "parameters": {
+                "conditions": {
+                    "boolean": [
+                        {
+                            "value1": "={{ $('Extrair e validar dados').item.json.completed }}",
+                            "value2": true
+                        }
+                    ]
+                }
+            }
+        },
+        {
+            "id": "exec-lead-scoring",
+            "name": "Executar Lead Scoring",
+            "type": "n8n-nodes-base.executeWorkflow",
+            "typeVersion": 1,
+            "position": [
+                1120,
+                200
+            ],
+            "parameters": {
+                "workflowId": "cj1N7ZPVoDxlI7Sk",
+                "options": {}
+            }
+        },
+        {
             "id": "respond",
             "name": "Responder",
             "type": "n8n-nodes-base.respondToWebhook",
             "typeVersion": 1,
             "position": [
-                680,
+                1340,
                 300
             ],
             "parameters": {
@@ -60,6 +107,17 @@
             "main": [
                 [
                     {
+                        "node": "Extrair e validar dados",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Extrair e validar dados": {
+            "main": [
+                [
+                    {
                         "node": "Atualizar DB",
                         "type": "main",
                         "index": 0
@@ -68,6 +126,35 @@
             ]
         },
         "Atualizar DB": {
+            "main": [
+                [
+                    {
+                        "node": "Completou Módulo?",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Completou Módulo?": {
+            "main": [
+                [
+                    {
+                        "node": "Executar Lead Scoring",
+                        "type": "main",
+                        "index": 0
+                    }
+                ],
+                [
+                    {
+                        "node": "Responder",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Executar Lead Scoring": {
             "main": [
                 [
                     {

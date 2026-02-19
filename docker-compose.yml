@@ -67,6 +67,7 @@ services:
       - "traefik.http.routers.kreativ-web-http.rule=Host(`extensionista.site`)"
       - "traefik.http.routers.kreativ-web-http.entrypoints=http"
       - "traefik.http.routers.kreativ-web-http.middlewares=kreativ-https-redirect"
+      - "traefik.docker.network=coolify"
 
   redis:
     image: redis:7-alpine
@@ -157,6 +158,7 @@ services:
       - "traefik.http.routers.kreativ-evolution-http.entrypoints=http"
       - "traefik.http.routers.kreativ-evolution-http.middlewares=kreativ-https-redirect"
       - "traefik.http.middlewares.kreativ-https-redirect.redirectscheme.scheme=https"
+      - "traefik.docker.network=coolify"
     depends_on:
       postgres:
         condition: service_healthy
@@ -214,6 +216,7 @@ services:
       - "traefik.http.routers.kreativ-n8n-http.rule=Host(`n8n.extensionista.site`)"
       - "traefik.http.routers.kreativ-n8n-http.entrypoints=http"
       - "traefik.http.routers.kreativ-n8n-http.middlewares=kreativ-https-redirect"
+      - "traefik.docker.network=coolify"
     depends_on:
       postgres:
         condition: service_healthy
@@ -295,6 +298,7 @@ services:
       - "traefik.http.routers.kreativ-minio-http.rule=Host(`files.extensionista.site`)"
       - "traefik.http.routers.kreativ-minio-http.entrypoints=http"
       - "traefik.http.routers.kreativ-minio-http.middlewares=kreativ-https-redirect"
+      - "traefik.docker.network=coolify"
     healthcheck:
       test: [ "CMD", "mc", "ready", "local" ]
       interval: 30s
@@ -345,6 +349,7 @@ services:
       - "traefik.http.routers.kreativ-tooljet-http.rule=Host(`admin.extensionista.site`)"
       - "traefik.http.routers.kreativ-tooljet-http.entrypoints=http"
       - "traefik.http.routers.kreativ-tooljet-http.middlewares=kreativ-https-redirect"
+      - "traefik.docker.network=coolify"
     depends_on:
       postgres:
         condition: service_healthy
@@ -378,6 +383,7 @@ services:
       - "traefik.http.routers.kreativ-metabase-http.rule=Host(`dash.extensionista.site`)"
       - "traefik.http.routers.kreativ-metabase-http.entrypoints=http"
       - "traefik.http.routers.kreativ-metabase-http.middlewares=kreativ-https-redirect"
+      - "traefik.docker.network=coolify"
     depends_on:
       postgres:
         condition: service_healthy
@@ -420,6 +426,7 @@ services:
       - "traefik.http.routers.kreativ-chatwoot-http.rule=Host(`suporte.extensionista.site`)"
       - "traefik.http.routers.kreativ-chatwoot-http.entrypoints=http"
       - "traefik.http.routers.kreativ-chatwoot-http.middlewares=kreativ-https-redirect"
+      - "traefik.docker.network=coolify"
       - "traefik.http.middlewares.kreativ-https-redirect.redirectscheme.scheme=https"
     depends_on:
       postgres:
@@ -489,6 +496,7 @@ services:
       - "traefik.http.routers.kreativ-portal-http.rule=Host(`portal.extensionista.site`)"
       - "traefik.http.routers.kreativ-portal-http.entrypoints=http"
       - "traefik.http.routers.kreativ-portal-http.middlewares=kreativ-https-redirect"
+      - "traefik.docker.network=coolify"
     depends_on:
       postgres:
         condition: service_healthy

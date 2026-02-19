@@ -32,6 +32,13 @@ async function handleAIResponse(ctx: BotContext, { flowDynamic, state }: BotMeth
     const message = ctx.body?.trim()
     if (!message || message.length < 3) return
 
+    // Check attendance status - DONT respond if human is handling
+    const attendance = (await state.get('attendance_status')) as string | undefined
+    if (attendance === 'human') {
+        console.log(`[aiTutorFlow] Bot is PAUSED for ${ctx.from} (human mode)`)
+        return
+    }
+
     await flowDynamic([{ body: '🤔 Pensando...' }])
 
     const courseContext = {
@@ -42,6 +49,10 @@ async function handleAIResponse(ctx: BotContext, { flowDynamic, state }: BotMeth
     try {
         const reply = await askDeepSeek(message, courseContext)
         await flowDynamic([{ body: reply }])
+
+        // CRM: Track AI interaction (+2 points)
+        const { mcpClient } = await import('../services/mcp-client')
+        await mcpClient.trackInteraction(ctx.from, 2, 'interacao_ia')
     } catch (_err) {
         await flowDynamic([
             {

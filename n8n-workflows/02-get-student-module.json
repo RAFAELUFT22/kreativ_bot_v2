@@ -28,7 +28,7 @@
         300
       ],
       "parameters": {
-        "jsCode": "const body = $input.item.json.body ?? $input.item.json;\nconst phone = body.phone ?? '';\nreturn [{ json: { phone } }];"
+        "jsCode": "try {\n  const body = $input.item.json.body ?? $input.item.json;\n  const phone = String(body.phone ?? '').replace(/\\D/g, '');\n  if (!phone) {\n    return [{ json: { phone: '', error: 'phone é obrigatório' } }];\n  }\n  return [{ json: { phone, error: null } }];\n} catch (e) {\n  return [{ json: { phone: '', error: e.message } }];\n}"
       }
     },
     {
@@ -42,7 +42,7 @@
       ],
       "parameters": {
         "operation": "executeQuery",
-        "query": "INSERT INTO students (phone, current_module, attendance_status) VALUES ('{{ $json.phone }}', 1, 'bot') ON CONFLICT (phone) DO UPDATE SET updated_at = NOW() RETURNING id, phone, current_module, attendance_status",
+        "query": "INSERT INTO students (phone, current_module, attendance_status) VALUES ('{{ $json.phone }}', 1, 'bot') ON CONFLICT (phone) DO UPDATE SET updated_at = NOW() RETURNING id, phone, current_module, attendance_status, name",
         "options": {}
       },
       "credentials": {
@@ -63,7 +63,7 @@
         300
       ],
       "parameters": {
-        "jsCode": "const phone = $('Extrair telefone').item.json.phone;\nconst row = $input.item.json;\n\n// Se upsert falhou (continueOnFail), usa módulo 1\nconst currentModule = parseInt(String(row.current_module ?? row.json?.current_module ?? '1'), 10) || 1;\n\nreturn [{ json: { phone, currentModule } }];"
+        "jsCode": "try {\n  const phone = $('Extrair telefone').item.json.phone;\n  const row = $input.item.json;\n  const currentModule = parseInt(String(row.current_module ?? '1'), 10) || 1;\n  return [{ json: { phone, currentModule } }];\n} catch (e) {\n  const phone = $('Extrair telefone').item.json.phone ?? '';\n  return [{ json: { phone, currentModule: 1 } }];\n}"
       }
     },
     {
@@ -77,7 +77,7 @@
       ],
       "parameters": {
         "operation": "executeQuery",
-        "query": "SELECT module_number, title, content_text, quiz_questions FROM modules WHERE course_id = 'default' AND module_number = {{ $json.currentModule }} AND is_active = true LIMIT 1",
+        "query": "SELECT module_number, title, content_text, evaluation_rubric FROM modules WHERE module_number = {{ $json.currentModule }} AND is_active = true ORDER BY CASE WHEN course_id = 'default' THEN 0 ELSE 1 END LIMIT 1",
         "options": {}
       },
       "credentials": {
@@ -98,7 +98,7 @@
         300
       ],
       "parameters": {
-        "jsCode": "const { phone, currentModule } = $('Determinar módulo atual').item.json;\nconst row = $input.item.json;\n\n// Se módulo não foi encontrado no DB, retorna placeholder\nconst hasModuleData = row && row.title && !row.message;\n\nif (!hasModuleData) {\n  return [{\n    json: {\n      moduleNumber: currentModule,\n      title: `Módulo ${currentModule}`,\n      content: `Conteúdo do módulo ${currentModule} em preparação. Responda QUIZ para continuar.`,\n      hasQuiz: true,\n      quizQuestions: []\n    }\n  }];\n}\n\nconst questions = row.quiz_questions ?? [];\n\nreturn [{\n  json: {\n    moduleNumber: row.module_number,\n    title: row.title,\n    content: row.content_text ?? 'Conteúdo em preparação.',\n    hasQuiz: questions.length > 0,\n    quizQuestions: questions\n  }\n}];"
+        "jsCode": "try {\n  const { phone, currentModule } = $('Determinar módulo atual').item.json;\n  const rows = $input.all();\n  const row = rows[0]?.json;\n\n  // Verifica se temos dados válidos do módulo\n  const hasModuleData = row && row.title && !row.message;\n\n  if (!hasModuleData) {\n    return [{\n      json: {\n        moduleNumber: currentModule,\n        title: `Módulo ${currentModule}`,\n        content: `Conteúdo do módulo ${currentModule} em preparação.`,\n        evaluationRubric: 'Módulo em preparação. Avaliação não disponível.',\n        _fallback: true\n      }\n    }];\n  }\n\n  return [{\n    json: {\n      moduleNumber: row.module_number,\n      title: row.title,\n      content: row.content_text ?? 'Conteúdo em preparação.',\n      evaluationRubric: row.evaluation_rubric ?? 'Demonstrar entendimento do conteúdo compartilhado.'\n    }\n  }];\n} catch (e) {\n  // Fallback seguro — NUNCA deixa o respondToWebhook sem dados\n  return [{\n    json: {\n      moduleNumber: 1,\n      title: 'Erro ao carregar módulo',\n      content: 'Houve um problema ao carregar o conteúdo. Por favor, tente novamente em alguns instantes.',\n      evaluationRubric: 'Erro interno ao carregar rubrica.',\n      _error: e.message\n    }\n  }];\n}"
       }
     },
     {

@@ -65,6 +65,10 @@ class MCPClient {
     async emitCertificate(phone: string, studentName: string, courseName: string): Promise<ToolResult> {
         return this.callTool('emit-certificate', { phone, studentName, courseName })
     }
+
+    async trackInteraction(phone: string, points: number, tag?: string): Promise<ToolResult> {
+        return this.callTool('lead-scoring', { phone, points, tag })
+    }
 }
 
 export const mcpClient = new MCPClient()

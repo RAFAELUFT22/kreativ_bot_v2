@@ -13,23 +13,36 @@
       "parameters": {
         "httpMethod": "POST",
         "path": "emit-certificate",
-        "responseMode": "onReceived",
+        "responseMode": "responseNode",
         "options": {}
       },
       "webhookId": "kreativ-emit-certificate"
     },
     {
-      "id": "pg-student-info",
-      "name": "Buscar dados do aluno",
-      "type": "n8n-nodes-base.postgres",
+      "id": "code-extract",
+      "name": "Extrair e validar",
+      "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
         460,
         300
       ],
       "parameters": {
+        "jsCode": "try {\n  const body = $input.item.json.body ?? $input.item.json;\n  const phone = String(body.phone ?? '').replace(/\\D/g, '');\n  const moduleNumber = parseInt(String(body.moduleNumber ?? body.moduleId ?? '0'), 10);\n  \n  if (!phone) {\n    return [{ json: { error: true, message: 'phone é obrigatório', phone } }];\n  }\n  \n  return [{ json: { phone, moduleNumber, error: false } }];\n} catch (e) {\n  return [{ json: { error: true, message: e.message, phone: '' } }];\n}"
+      }
+    },
+    {
+      "id": "pg-student-info",
+      "name": "Buscar dados do aluno",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        680,
+        300
+      ],
+      "parameters": {
         "operation": "executeQuery",
-        "query": "SELECT s.name, s.phone, c.name AS course_name, m.title AS module_name FROM students s JOIN modules m ON m.id = '{{ $json.body.moduleId }}'::uuid LEFT JOIN courses c ON c.id = m.course_id WHERE s.phone = '{{ $json.body.phone }}' LIMIT 1;",
+        "query": "SELECT s.name, s.phone, m.title AS module_name, COALESCE(m.course_id, 'Kreativ Educação') AS course_name FROM students s LEFT JOIN modules m ON m.module_number = {{ $json.moduleNumber }} AND m.is_active = true WHERE s.phone = '{{ $json.phone }}' LIMIT 1",
         "options": {}
       },
       "credentials": {
@@ -37,7 +50,8 @@
           "id": "lJaeEy4CpHbhgMAp",
           "name": "Kreativ PostgreSQL"
         }
-      }
+      },
+      "continueOnFail": true
     },
     {
       "id": "code-gen-cert",
@@ -45,11 +59,11 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        680,
+        900,
         300
       ],
       "parameters": {
-        "jsCode": "const data = $input.all()[0]?.json ?? {};\nconst webhook = $('Webhook: emitir certificado').all()[0]?.json?.body ?? {};\nconst certId = 'KRV-' + Math.random().toString(36).substring(2,10).toUpperCase();\nconst date = new Date().toLocaleDateString('pt-BR', { year:'numeric', month:'long', day:'numeric' });\n\n// Fetch the template from MinIO (public)\nconst templateUrl = 'http://kreativ_minio:9000/materiais/certificate-template.html';\nlet html;\ntry {\n  const resp = await fetch(templateUrl);\n  html = await resp.text();\n} catch(e) {\n  // Fallback: inline minimal template\n  html = `<!DOCTYPE html><html><body style='font-family:serif;text-align:center;padding:60px;'><h1 style='color:#2c3e50'>Certificado de Conclusão</h1><h2>Kreativ Educação</h2><p>Certificamos que <strong>${data.name ?? webhook.phone}</strong> concluiu o módulo <strong>${data.module_name ?? ''}</strong> do curso <strong>${data.course_name ?? ''}</strong> em ${date}.</p><p>Código: ${certId}</p></body></html>`;\n}\n\nhtml = html\n  .replace('{{STUDENT_NAME}}', data.name ?? webhook.phone)\n  .replace('{{MODULE_NAME}}', data.module_name ?? '')\n  .replace('{{COURSE_NAME}}', data.course_name ?? '')\n  .replace('{{DATE}}', date)\n  .replace('{{CERT_ID}}', certId);\n\n\n// Gerar URL do portal com os dados do certificado\nconst nameEncoded = encodeURIComponent(data.name ?? webhook.phone ?? '');\nconst moduloEncoded = encodeURIComponent(data.module_name ?? '');\nconst cursoEncoded = encodeURIComponent(data.course_name ?? 'Kreativ Educação');\nconst dateEncoded = encodeURIComponent(date);\nconst certPortalUrl = `https://portal.extensionista.site/certificado/${certId}?name=${nameEncoded}&modulo=${moduloEncoded}&curso=${cursoEncoded}&data=${dateEncoded}`;\n\nreturn [{ json: { html, certId, certPortalUrl, phone: data.phone ?? webhook.phone, studentName: data.name ?? webhook.phone } }];"
+        "jsCode": "try {\n  const extracted = $('Extrair e validar').item.json;\n  const data = $input.all()[0]?.json ?? {};\n  const certId = 'KRV-' + Math.random().toString(36).substring(2,10).toUpperCase();\n  const date = new Date().toLocaleDateString('pt-BR', { year:'numeric', month:'long', day:'numeric' });\n  const studentName = data.name ?? extracted.phone;\n  const moduleName = data.module_name ?? 'Módulo Concluído';\n  const courseName = data.course_name ?? 'Kreativ Educação';\n  const phone = data.phone ?? extracted.phone;\n\n  const html = `<!DOCTYPE html><html><head><meta charset='utf-8'><style>body{font-family:'Georgia',serif;text-align:center;padding:60px;border:8px double #2c3e50;margin:40px;background:#fefefe;}h1{color:#2c3e50;font-size:2.5em;}h2{color:#16a085;}.info{font-size:1.2em;margin:20px 0;}.code{color:#7f8c8d;font-size:0.9em;margin-top:40px;}</style></head><body><h1>Certificado de Conclusão</h1><h2>Kreativ Educação</h2><p class='info'>Certificamos que <strong>${studentName}</strong> concluiu com êxito o módulo <strong>${moduleName}</strong> do curso <strong>${courseName}</strong> em ${date}.</p><p class='code'>Código de autenticidade: ${certId}</p></body></html>`;\n\n  const nameEncoded = encodeURIComponent(studentName);\n  const moduloEncoded = encodeURIComponent(moduleName);\n  const cursoEncoded = encodeURIComponent(courseName);\n  const dateEncoded = encodeURIComponent(date);\n  const certPortalUrl = `https://portal.extensionista.site/certificado/${certId}?name=${nameEncoded}&modulo=${moduloEncoded}&curso=${cursoEncoded}&data=${dateEncoded}`;\n\n  return [{ json: { html, certId, certPortalUrl, phone, studentName, error: false } }];\n} catch (e) {\n  return [{ json: { error: true, message: 'Erro ao gerar certificado: ' + e.message, phone: '' } }];\n}"
       }
     },
     {
@@ -58,7 +72,7 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4,
       "position": [
-        900,
+        1120,
         300
       ],
       "parameters": {
@@ -77,9 +91,11 @@
         "specifyBody": "raw",
         "rawBody": "={{ $json.html }}",
         "options": {
-          "allowUnauthorizedCerts": true
+          "allowUnauthorizedCerts": true,
+          "timeout": 10000
         }
-      }
+      },
+      "continueOnFail": true
     },
     {
       "id": "http-send-cert-wapp",
@@ -87,7 +103,7 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4,
       "position": [
-        1120,
+        1340,
         300
       ],
       "parameters": {
@@ -104,12 +120,41 @@
         },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify({ number: $('Gerar HTML do certificado').item.json.phone, text: '🏆 *Parabéns, ' + $('Gerar HTML do certificado').item.json.studentName + '!*\\n\\nSeu certificado de conclusão foi emitido!\\n\\n📜 Acesse seu certificado:\\n' + $('Gerar HTML do certificado').item.json.certPortalUrl + '\\n\\nCódigo de autenticidade: *' + $('Gerar HTML do certificado').item.json.certId + '*' }) }}"
+        "jsonBody": "={{ JSON.stringify({ number: $('Gerar HTML do certificado').item.json.phone, text: '🏆 *Parabéns, ' + $('Gerar HTML do certificado').item.json.studentName + '!*\\n\\nSeu certificado de conclusão foi emitido!\\n\\n📜 Acesse seu certificado:\\n' + $('Gerar HTML do certificado').item.json.certPortalUrl + '\\n\\nCódigo de autenticidade: *' + $('Gerar HTML do certificado').item.json.certId + '*' }) }}",
+        "options": {
+          "timeout": 10000
+        }
+      },
+      "continueOnFail": true
+    },
+    {
+      "id": "respond-cert",
+      "name": "Responder webhook",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [
+        1560,
+        300
+      ],
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ success: true, certId: $('Gerar HTML do certificado').item.json.certId ?? 'unknown', certUrl: $('Gerar HTML do certificado').item.json.certPortalUrl ?? '' }) }}"
       }
     }
   ],
   "connections": {
     "Webhook: emitir certificado": {
+      "main": [
+        [
+          {
+            "node": "Extrair e validar",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extrair e validar": {
       "main": [
         [
           {
@@ -152,11 +197,21 @@
           }
         ]
       ]
+    },
+    "Enviar link do certificado": {
+      "main": [
+        [
+          {
+            "node": "Responder webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     }
   },
   "settings": {
     "callerPolicy": "workflowsFromSameOwner",
-    "availableInMCP": false
-  },
-  "staticData": null
+    "executionOrder": "v1"
+  }
 }

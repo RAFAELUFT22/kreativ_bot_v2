@@ -8,15 +8,39 @@
       "typeVersion": 2,
       "position": [
         240,
-        300
+        200
       ],
       "parameters": {
         "httpMethod": "POST",
-        "path": "module-completed",
+        "path": "lead-scoring",
         "responseMode": "onReceived",
         "options": {}
       },
       "webhookId": "kreativ-module-completed"
+    },
+    {
+      "id": "trigger-sub",
+      "name": "Execute Workflow Trigger",
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1,
+      "position": [
+        240,
+        400
+      ],
+      "parameters": {}
+    },
+    {
+      "id": "code-normalize",
+      "name": "Normalizar Entrada",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        460,
+        300
+      ],
+      "parameters": {
+        "jsCode": "const input = $input.item.json;\nconst phone = String(input.phone ?? input.body?.phone ?? '').replace(/\\D/g, '');\nconst moduleNumber = parseInt(String(input.moduleNumber ?? input.body?.moduleNumber ?? '0'), 10);\nconst points = parseInt(String(input.points ?? input.body?.points ?? '20'), 10);\nconst tag = input.tag ?? input.body?.tag ?? null;\nreturn [{ json: { body: { phone, moduleNumber, points, tag } } }];"
+      }
     },
     {
       "id": "pg-lead-scoring",
@@ -24,12 +48,12 @@
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2,
       "position": [
-        460,
+        680,
         300
       ],
       "parameters": {
         "operation": "executeQuery",
-        "query": "WITH stats AS (\n  SELECT \n    s.phone,\n    COALESCE(array_length(s.completed_modules, 1), 0) as done,\n    (SELECT COUNT(*) FROM modules WHERE course_id = s.course_id::text OR course_id = s.course_id::varchar) as total\n  FROM students s\n  WHERE s.phone = '{{ $json.body.phone }}'\n)\nUPDATE students SET\n  lead_score = LEAST(100, ROUND((stats.done::float / NULLIF(stats.total,0)) * 100)),\n  updated_at = NOW()\nFROM stats WHERE students.phone = stats.phone\nRETURNING students.phone, students.lead_score, students.name;",
+        "query": "UPDATE students SET\n  lead_score = LEAST(100, \n    CASE \n      WHEN {{ $json.body.moduleNumber }} > 0 THEN (\n        SELECT ROUND((COALESCE(array_length(completed_modules, 1), 0)::float / NULLIF((SELECT COUNT(*) FROM modules WHERE course_id = students.course_id::text), 0)) * 100)\n      )\n      ELSE lead_score + {{ $json.body.points }}\n    END\n  ),\n  lead_tags = CASE \n    WHEN '{{ $json.body.tag }}' != 'null' AND '{{ $json.body.tag }}' != '' THEN ARRAY_APPEND(ARRAY_REMOVE(lead_tags, '{{ $json.body.tag }}'), '{{ $json.body.tag }}')\n    ELSE lead_tags\n  END,\n  updated_at = NOW()\nWHERE phone = '{{ $json.body.phone }}'\nRETURNING phone, lead_score, name;",
         "options": {}
       },
       "credentials": {
@@ -37,7 +61,8 @@
           "id": "lJaeEy4CpHbhgMAp",
           "name": "Kreativ PostgreSQL"
         }
-      }
+      },
+      "continueOnFail": true
     },
     {
       "id": "code-score-msg",
@@ -45,11 +70,11 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        680,
+        900,
         300
       ],
       "parameters": {
-        "jsCode": "const body = $('Webhook: módulo concluído').all()[0]?.json?.body ?? {};\nconst phone = String(body.phone ?? '');\nconst moduleNumber = body.moduleNumber ?? '';\nconst score = $input.all()[0]?.json?.lead_score ?? 0;\n\nlet emoji = '⭐';\nif (score >= 100) emoji = '🏆';\nelse if (score >= 75) emoji = '🥇';\nelse if (score >= 50) emoji = '🥈';\nelse if (score >= 25) emoji = '🥉';\n\nconst msg = `${emoji} *Parabéns!*\\n\\nVocê concluiu o Módulo ${moduleNumber} com sucesso!\\nSeu progresso atual: *${score}%*\\n\\nContinue assim! 🚀`;\n\nreturn [{ json: { phone, message: msg, score } }];"
+        "jsCode": "const norm = $('Normalizar Entrada').item.json.body;\nconst phone = norm.phone;\nconst moduleNumber = norm.moduleNumber;\nconst score = $input.all()[0]?.json?.lead_score ?? 0;\n\nlet emoji = '⭐';\nif (score >= 100) emoji = '🏆';\nelse if (score >= 75) emoji = '🥇';\nelse if (score >= 50) emoji = '🥈';\nelse if (score >= 25) emoji = '🥉';\n\nconst msg = `${emoji} *Parabéns!*\\n\\nVocê concluiu o Módulo ${moduleNumber} com sucesso!\\nSeu progresso atual: *${score}%*\\n\\nContinue assim! 🚀`;\n\nreturn [{ json: { phone, message: msg, score } }];"
       }
     },
     {
@@ -58,7 +83,7 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4,
       "position": [
-        900,
+        1120,
         300
       ],
       "parameters": {
@@ -76,7 +101,8 @@
         "sendBody": true,
         "specifyBody": "json",
         "jsonBody": "={{ JSON.stringify({ number: $json.phone, text: $json.message }) }}"
-      }
+      },
+      "continueOnFail": true
     },
     {
       "id": "http-update-label",
@@ -84,20 +110,56 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4,
       "position": [
-        680,
+        1120,
         500
       ],
       "parameters": {
         "method": "POST",
-        "url": "http://kreativ_n8n:5678/webhook/update-chatwoot-label",
+        "url": "http://localhost:5678/webhook/update-chatwoot-label",
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify({ phone: $json.phone, module_number: $('Webhook: módulo concluído').item?.json?.body?.moduleNumber }) }}"
+        "jsonBody": "={{ JSON.stringify({ phone: $json.phone, module_number: $('Normalizar Entrada').item?.json?.body?.moduleNumber }) }}"
+      },
+      "continueOnFail": true
+    },
+    {
+      "id": "respond-ok",
+      "name": "Respond to Webhook",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [
+        1350,
+        300
+      ],
+      "parameters": {
+        "options": {}
       }
     }
   ],
   "connections": {
     "Webhook: módulo concluído": {
+      "main": [
+        [
+          {
+            "node": "Normalizar Entrada",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Execute Workflow Trigger": {
+      "main": [
+        [
+          {
+            "node": "Normalizar Entrada",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Normalizar Entrada": {
       "main": [
         [
           {
@@ -134,11 +196,32 @@
           }
         ]
       ]
+    },
+    "Enviar parabéns WhatsApp": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Atualizar Label Chatwoot": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     }
   },
   "settings": {
     "callerPolicy": "workflowsFromSameOwner",
-    "availableInMCP": false
-  },
-  "staticData": null
+    "executionOrder": "v1"
+  }
 }
