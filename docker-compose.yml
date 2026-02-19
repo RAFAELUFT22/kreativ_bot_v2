@@ -73,6 +73,7 @@ services:
     image: redis:7-alpine
     container_name: kreativ_redis
     restart: always
+    command: redis-server --requirepass ${REDIS_PASSWORD}
     volumes:
       - redis_data:/data
     networks:
@@ -200,7 +201,7 @@ services:
       NODE_FUNCTION_ALLOW_BUILTIN: "*"
       NODE_FUNCTION_ALLOW_EXTERNAL: "*"
       # --- Memory & Execution Optimization ---
-      EXECUTIONS_PROCESS: ownProcess
+      EXECUTIONS_PROCESS: main
       EXECUTIONS_DATA_PRUNE: "true"
       EXECUTIONS_DATA_MAX_AGE: 168
       EXECUTIONS_DATA_PRUNE_MAX_COUNT: 1000
