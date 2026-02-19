@@ -13,6 +13,7 @@
       "parameters": {
         "httpMethod": "POST",
         "path": "whatsapp",
+        "responseMode": "responseNode",
         "options": {}
       },
       "webhookId": "whatsapp-kreativ-bot"
@@ -101,6 +102,20 @@
       }
     },
     {
+      "id": "n-respond-early",
+      "name": "Responder OK",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [
+        740,
+        150
+      ],
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "{\"success\": true}"
+      }
+    },
+    {
       "id": "rd-rate-limit",
       "name": "Redis: Rate Limit",
       "type": "n8n-nodes-base.redis",
@@ -115,7 +130,7 @@
       },
       "credentials": {
         "redis": {
-          "id": "pqD1PcyYhsWm4i3a",
+          "id": "UsDwEEPoPilLz7OS",
           "name": "Kreativ Redis"
         }
       }
@@ -168,7 +183,7 @@
       },
       "credentials": {
         "redis": {
-          "id": "pqD1PcyYhsWm4i3a",
+          "id": "UsDwEEPoPilLz7OS",
           "name": "Kreativ Redis"
         }
       }
@@ -188,7 +203,7 @@
       },
       "credentials": {
         "redis": {
-          "id": "pqD1PcyYhsWm4i3a",
+          "id": "UsDwEEPoPilLz7OS",
           "name": "Kreativ Redis"
         }
       }
@@ -262,7 +277,7 @@
       },
       "credentials": {
         "redis": {
-          "id": "pqD1PcyYhsWm4i3a",
+          "id": "UsDwEEPoPilLz7OS",
           "name": "Kreativ Redis"
         }
       }
@@ -563,6 +578,11 @@
         [
           {
             "node": "Redis: Rate Limit",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Responder OK",
             "type": "main",
             "index": 0
           }

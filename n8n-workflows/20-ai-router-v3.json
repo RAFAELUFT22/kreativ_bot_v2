@@ -48,7 +48,7 @@
             },
             "credentials": {
                 "redis": {
-                    "id": "pqD1PcyYhsWm4i3a",
+                    "id": "UsDwEEPoPilLz7OS",
                     "name": "Kreativ Redis"
                 }
             }
@@ -161,7 +161,9 @@
                 "sendBody": true,
                 "specifyBody": "json",
                 "jsonBody": "={{ \n  const history = $json.history.map(h => ({ role: h.role, content: h.content }));\n  const messages = [\n    {\n      role: \"system\",\n      content: `Você é o Tutor IA da Kreativ Educação para o curso: ${$json.course_name}.\\nALUNO: ${$json.student_name}\\n\\nEXEMPLOS DE TOM DE VOZ:\\n${$json.examples}\\n\\nEMENTA ATUAL:\\n${$json.syllabus}`\n    },\n    ...history,\n    { role: \"user\", content: $node[\"Transformer\"].json.body }\n  ];\n  return JSON.stringify({\n    model: \"deepseek-chat\",\n    messages,\n    temperature: 0.7\n  });\n}}",
-                "options": {}
+                "options": {
+                    "timeout": 30000
+                }
             },
             "id": "deepseek-ai",
             "name": "DeepSeek AI",
@@ -170,7 +172,21 @@
             "position": [
                 1250,
                 300
-            ]
+            ],
+            "continueOnFail": true
+        },
+        {
+            "id": "code-check-ai",
+            "name": "Check AI Response",
+            "type": "n8n-nodes-base.code",
+            "typeVersion": 2,
+            "position": [
+                1450,
+                300
+            ],
+            "parameters": {
+                "jsCode": "if ($json.choices && $json.choices.length > 0) return [$input.item];\nreturn [{ json: { choices: [{ message: { content: \"Desculpe, tive um problema ao processar sua dúvida. Pode repetir?\" } }] } }];"
+            }
         },
         {
             "id": "rd-push-user",
@@ -178,7 +194,7 @@
             "type": "n8n-nodes-base.redis",
             "typeVersion": 1,
             "position": [
-                1450,
+                1650,
                 200
             ],
             "parameters": {
@@ -188,7 +204,7 @@
             },
             "credentials": {
                 "redis": {
-                    "id": "pqD1PcyYhsWm4i3a",
+                    "id": "UsDwEEPoPilLz7OS",
                     "name": "Kreativ Redis"
                 }
             }
@@ -199,7 +215,7 @@
             "type": "n8n-nodes-base.redis",
             "typeVersion": 1,
             "position": [
-                1450,
+                1650,
                 400
             ],
             "parameters": {
@@ -209,7 +225,7 @@
             },
             "credentials": {
                 "redis": {
-                    "id": "pqD1PcyYhsWm4i3a",
+                    "id": "UsDwEEPoPilLz7OS",
                     "name": "Kreativ Redis"
                 }
             }
@@ -220,7 +236,7 @@
             "type": "n8n-nodes-base.redis",
             "typeVersion": 1,
             "position": [
-                1650,
+                1850,
                 400
             ],
             "parameters": {
@@ -231,7 +247,7 @@
             },
             "credentials": {
                 "redis": {
-                    "id": "pqD1PcyYhsWm4i3a",
+                    "id": "UsDwEEPoPilLz7OS",
                     "name": "Kreativ Redis"
                 }
             }
@@ -242,14 +258,14 @@
                 "url": "http://kreativ_builderbot:3008/api/send",
                 "sendBody": true,
                 "specifyBody": "json",
-                "jsonBody": "={{ JSON.stringify({ phone: $node[\"Transformer\"].json.phone, message: $node[\"DeepSeek AI\"].json.choices[0].message.content }) }}"
+                "jsonBody": "={{ JSON.stringify({ phone: $node[\"Transformer\"].json.phone, message: $node[\"Check AI Response\"].json.choices[0].message.content }) }}"
             },
             "id": "send-wa",
             "name": "Send WhatsApp",
             "type": "n8n-nodes-base.httpRequest",
             "typeVersion": 4.1,
             "position": [
-                1850,
+                2050,
                 300
             ]
         }
@@ -349,6 +365,17 @@
             ]
         },
         "DeepSeek AI": {
+            "main": [
+                [
+                    {
+                        "node": "Check AI Response",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Check AI Response": {
             "main": [
                 [
                     {
