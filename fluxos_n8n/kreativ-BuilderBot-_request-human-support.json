@@ -1,0 +1,90 @@
+{
+  "name": "BuilderBot: request-human-support",
+  "nodes": [
+    {
+      "id": "pg-pause-bot",
+      "name": "Pausar bot e criar sessão",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        460,
+        300
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "WITH upserted AS (\n  INSERT INTO students (phone, attendance_status)\n  VALUES ('{{ $json.body.phone ?? $json.phone }}', 'human')\n  ON CONFLICT (phone) DO UPDATE\n    SET attendance_status = 'human', updated_at = NOW()\n  RETURNING id\n)\nINSERT INTO support_sessions (student_id, reason)\nSELECT id, '{{ ($json.body.reason ?? $json.reason ?? 'Solicitação via bot') | replace(\"'\", \"''\") }}'\nFROM upserted\nRETURNING id",
+        "options": {}
+      },
+      "credentials": {
+        "postgres": {
+          "id": "lJaeEy4CpHbhgMAp",
+          "name": "Kreativ PostgreSQL"
+        }
+      },
+      "continueOnFail": true
+    },
+    {
+      "id": "wh-support",
+      "name": "Webhook request-human-support",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        240,
+        300
+      ],
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "request-human-support",
+        "responseMode": "onReceived",
+        "responseData": "allEntries",
+        "responseCode": 200,
+        "options": {
+          "responseData": "{\"success\":true,\"tutorName\":\"Equipe Kreativ\",\"estimatedWait\":\"até 30 min\"}"
+        }
+      },
+      "webhookId": "kreativ-request-human-support"
+    },
+    {
+      "id": "code-chatwoot-full",
+      "name": "Criar atendimento no Chatwoot",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        680,
+        300
+      ],
+      "parameters": {
+        "jsCode": "\nconst CHATWOOT_URL = 'https://suporte.extensionista.site';\nconst ACCOUNT_ID = 2;\nconst TOKEN = 'hh5bHLwTRyKoqZzAvaPUUm5v';\nconst INBOX_ID = 1;\n\nconst webhookItem = $('Webhook request-human-support').all()[0];\nconst bodyData = webhookItem?.json?.body ?? {};\n\nconst phone = String(bodyData.phone ?? '');\nconst reason = String(bodyData.reason ?? 'Aluno solicitou atendimento humano');\nconst phoneWithPlus = phone.startsWith('+') ? phone : '+' + phone;\nconst phoneRaw = phone.replace(/^\\+/, '');\n\nconst headers = {\n  'api_access_token': TOKEN,\n  'Content-Type': 'application/json'\n};\n\nasync function apiCall(method, path, body) {\n  const opts = { method, headers };\n  if (body) opts.body = JSON.stringify(body);\n  const resp = await fetch(CHATWOOT_URL + path, opts);\n  return resp.json();\n}\n\n// Search for contact\nlet contactId = null;\ntry {\n  const s1 = await apiCall('GET', `/api/v1/accounts/${ACCOUNT_ID}/contacts/search?q=${phoneRaw}&page=1`);\n  for (const c of (s1?.payload?.contacts ?? [])) {\n    const cp = String(c.phone_number ?? '').replace(/[\\s()\\-]/g, '');\n    if (cp === phoneWithPlus || cp === phoneRaw || cp === '+' + phoneRaw) {\n      contactId = c.id; break;\n    }\n  }\n} catch(e) { console.error('search error', e.message); }\n\n// Create if not found\nif (!contactId) {\n  try {\n    const cr = await apiCall('POST', `/api/v1/accounts/${ACCOUNT_ID}/contacts`, {\n      phone_number: phoneWithPlus, name: 'Aluno WA'\n    });\n    if (cr.id) { contactId = cr.id; }\n    else if ((cr.message || '').includes('already')) {\n      // Try searching with +\n      const s2 = await apiCall('GET', `/api/v1/accounts/${ACCOUNT_ID}/contacts/search?q=${encodeURIComponent(phoneWithPlus)}&page=1`);\n      for (const c of (s2?.payload?.contacts ?? [])) {\n        const cp = String(c.phone_number ?? '').replace(/[\\s()\\-]/g, '');\n        if (cp === phoneWithPlus || cp === '+' + phoneRaw) { contactId = c.id; break; }\n      }\n    }\n  } catch(e) { console.error('create error', e.message); }\n}\n\nif (!contactId) {\n  console.error('Contact not found/created for phone:', phone);\n  return [{ json: { ok: false, reason: 'contact_not_found', phone } }];\n}\n\n// Create conversation\nlet conversationId = null;\ntry {\n  const conv = await apiCall('POST', `/api/v1/accounts/${ACCOUNT_ID}/conversations`, {\n    inbox_id: INBOX_ID, contact_id: contactId,\n    additional_attributes: { phone, reason }\n  });\n  conversationId = conv.id;\n} catch(e) { console.error('conv error', e.message); }\n\nif (!conversationId) {\n  return [{ json: { ok: false, reason: 'conv_not_created', contactId } }];\n}\n\n// Private note\ntry {\n  await apiCall('POST', `/api/v1/accounts/${ACCOUNT_ID}/conversations/${conversationId}/messages`, {\n    content: `🤖 *Bot pausado — pedido de suporte*\\n📱 Telefone: ${phone}\\n📝 Motivo: ${reason}\\n\\n_Ao resolver a conversa, o bot retomará automaticamente._`,\n    message_type: 'activity',\n    private: true\n  });\n} catch(e) {}\n\nreturn [{ json: { ok: true, conversationId, contactId, phone } }];\n"
+      }
+    }
+  ],
+  "connections": {
+    "Webhook request-human-support": {
+      "main": [
+        [
+          {
+            "node": "Pausar bot e criar sessão",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Pausar bot e criar sessão": {
+      "main": [
+        [
+          {
+            "node": "Criar atendimento no Chatwoot",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "callerPolicy": "workflowsFromSameOwner",
+    "availableInMCP": false
+  }
+}
