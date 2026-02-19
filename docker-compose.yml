@@ -1,5 +1,5 @@
 # =============================================================================
-# STACK KREATIV EDUCAÇÃO - VPS HOSTINGER 3.8GB RAM / 1 vCPU
+# STACK KREATIV EDUCAÇÃO - VPS HOSTINGER 7.8GB RAM / 2 vCPU
 # Domínio: extensionista.site
 # Coolify + Traefik v3 gerenciam proxy e SSL (Let's Encrypt automático)
 # =============================================================================
@@ -305,62 +305,77 @@ services:
   # ---------------------------------------------------------------------------
   # PAINEL ADMIN: TOOLJET — https://admin.extensionista.site
   # ---------------------------------------------------------------------------
-  # tooljet:
-  #   image: tooljet/tooljet:v2.23.0-ee
-  #   container_name: kreativ_tooljet
-  #   restart: always
-  #   environment:
-  #     LOCKBOX_KEY: ${LOCKBOX_KEY}
-  #     SECRET_KEY_BASE: ${TOOLJET_SECRET_KEY}
-  #     PG_HOST: postgres
-  #     PG_DB: ${TOOLJET_DB_NAME:-tooljet_db}
-  #     PG_USER: ${POSTGRES_USER}
-  #     PG_PASSWORD: ${POSTGRES_PASSWORD}
-  #     PG_PORT: 5432
-  #     TOOLJET_HOST: https://admin.extensionista.site
-  #     DEPLOYMENT_PLATFORM: docker
-  #   networks:
-  #     - kreativ_net
-  #     - coolify
-  #   labels:
-  #     - "traefik.enable=true"
-  #     - "traefik.http.routers.kreativ-tooljet.rule=Host(`admin.extensionista.site`)"
-  #     - "traefik.http.routers.kreativ-tooljet.entrypoints=https"
-  #     - "traefik.http.routers.kreativ-tooljet.tls=true"
-  #     - "traefik.http.routers.kreativ-tooljet.tls.certresolver=letsencrypt"
-  #     - "traefik.http.services.kreativ-tooljet.loadbalancer.server.port=80"
-  #   depends_on:
-  #     postgres:
-  #       condition: service_healthy
+  tooljet:
+    image: tooljet/tooljet:ee-lts-latest
+    container_name: kreativ_tooljet
+    restart: always
+    command: npm run start:prod
+    environment:
+      LOCKBOX_KEY: ${LOCKBOX_KEY}
+      SECRET_KEY_BASE: ${TOOLJET_SECRET_KEY}
+      PG_HOST: postgres
+      PG_DB: ${TOOLJET_DB_NAME:-tooljet_db}
+      PG_USER: ${POSTGRES_USER}
+      PG_PASSWORD: ${POSTGRES_PASSWORD}
+      PG_PORT: 5432
+      PG_SSL: "false"
+      TOOLJET_HOST: https://admin.extensionista.site
+      DEPLOYMENT_PLATFORM: docker
+      NODE_ENV: production
+      TOOLJET_DB_USER: ${POSTGRES_USER}
+      TOOLJET_DB_HOST: postgres
+      TOOLJET_DB_PORT: 5432
+      TOOLJET_DB_PASS: ${POSTGRES_PASSWORD}
+      TOOLJET_DB: ${TOOLJET_DB_NAME:-tooljet_db}
+    networks:
+      - kreativ_net
+      - coolify
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.kreativ-tooljet.rule=Host(`admin.extensionista.site`)"
+      - "traefik.http.routers.kreativ-tooljet.entrypoints=https"
+      - "traefik.http.routers.kreativ-tooljet.tls=true"
+      - "traefik.http.routers.kreativ-tooljet.tls.certresolver=letsencrypt"
+      - "traefik.http.services.kreativ-tooljet.loadbalancer.server.port=3000"
+      - "traefik.http.routers.kreativ-tooljet-http.rule=Host(`admin.extensionista.site`)"
+      - "traefik.http.routers.kreativ-tooljet-http.entrypoints=http"
+      - "traefik.http.routers.kreativ-tooljet-http.middlewares=kreativ-https-redirect"
+    depends_on:
+      postgres:
+        condition: service_healthy
 
   # ---------------------------------------------------------------------------
   # DASHBOARDS: METABASE — https://dash.extensionista.site
   # ---------------------------------------------------------------------------
-  # metabase:
-  #   image: metabase/metabase:latest
-  #   container_name: kreativ_metabase
-  #   restart: always
-  #   environment:
-  #     MB_DB_TYPE: postgres
-  #     MB_DB_DBNAME: metabase_db
-  #     MB_DB_PORT: 5432
-  #     MB_DB_USER: ${POSTGRES_USER}
-  #     MB_DB_PASS: ${POSTGRES_PASSWORD}
-  #     MB_DB_HOST: postgres
-  #     MB_SITE_URL: https://dash.extensionista.site
-  #   networks:
-  #     - kreativ_net
-  #     - coolify
-  #   labels:
-  #     - "traefik.enable=true"
-  #     - "traefik.http.routers.kreativ-metabase.rule=Host(`dash.extensionista.site`)"
-  #     - "traefik.http.routers.kreativ-metabase.entrypoints=https"
-  #     - "traefik.http.routers.kreativ-metabase.tls=true"
-  #     - "traefik.http.routers.kreativ-metabase.tls.certresolver=letsencrypt"
-  #     - "traefik.http.services.kreativ-metabase.loadbalancer.server.port=3000"
-  #   depends_on:
-  #     postgres:
-  #       condition: service_healthy
+  metabase:
+    image: metabase/metabase:v0.52.9
+    container_name: kreativ_metabase
+    restart: always
+    environment:
+      MB_DB_TYPE: postgres
+      MB_DB_DBNAME: metabase_db
+      MB_DB_PORT: 5432
+      MB_DB_USER: ${POSTGRES_USER}
+      MB_DB_PASS: ${POSTGRES_PASSWORD}
+      MB_DB_HOST: postgres
+      MB_SITE_URL: https://dash.extensionista.site
+      JAVA_OPTS: "-Xmx512m"
+    networks:
+      - kreativ_net
+      - coolify
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.kreativ-metabase.rule=Host(`dash.extensionista.site`)"
+      - "traefik.http.routers.kreativ-metabase.entrypoints=https"
+      - "traefik.http.routers.kreativ-metabase.tls=true"
+      - "traefik.http.routers.kreativ-metabase.tls.certresolver=letsencrypt"
+      - "traefik.http.services.kreativ-metabase.loadbalancer.server.port=3000"
+      - "traefik.http.routers.kreativ-metabase-http.rule=Host(`dash.extensionista.site`)"
+      - "traefik.http.routers.kreativ-metabase-http.entrypoints=http"
+      - "traefik.http.routers.kreativ-metabase-http.middlewares=kreativ-https-redirect"
+    depends_on:
+      postgres:
+        condition: service_healthy
 
   # ---------------------------------------------------------------------------
   # ATENDIMENTO HUMANO: CHATWOOT — https://suporte.extensionista.site
@@ -439,6 +454,39 @@ services:
     networks:
       - kreativ_net
       - coolify
+
+  # ---------------------------------------------------------------------------
+  # PORTAL DO ALUNO: NEXT.JS — https://portal.extensionista.site
+  # ---------------------------------------------------------------------------
+  portal:
+    build:
+      context: ./apps/portal
+      dockerfile: Dockerfile
+    container_name: kreativ_portal
+    restart: always
+    environment:
+      DB_HOST: kreativ_postgres
+      DB_PORT: 5432
+      DB_NAME: ${POSTGRES_DB}
+      DB_USER: ${POSTGRES_USER}
+      DB_PASSWORD: ${POSTGRES_PASSWORD}
+      NODE_ENV: production
+    networks:
+      - kreativ_net
+      - coolify
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.kreativ-portal.rule=Host(`portal.extensionista.site`)"
+      - "traefik.http.routers.kreativ-portal.entrypoints=https"
+      - "traefik.http.routers.kreativ-portal.tls=true"
+      - "traefik.http.routers.kreativ-portal.tls.certresolver=letsencrypt"
+      - "traefik.http.services.kreativ-portal.loadbalancer.server.port=3000"
+      - "traefik.http.routers.kreativ-portal-http.rule=Host(`portal.extensionista.site`)"
+      - "traefik.http.routers.kreativ-portal-http.entrypoints=http"
+      - "traefik.http.routers.kreativ-portal-http.middlewares=kreativ-https-redirect"
+    depends_on:
+      postgres:
+        condition: service_healthy
 
 volumes:
   postgres_data:

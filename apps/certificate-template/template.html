@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700&family=Inter:wght@400;600&display=swap');
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: 'Inter', sans-serif; background: #fff; width: 1056px; height: 748px; }
+
+  .certificate {
+    width: 1056px; height: 748px; position: relative;
+    background: linear-gradient(135deg, #0f2027, #203a43, #2c5364);
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    padding: 60px;
+  }
+
+  .border {
+    position: absolute; top: 20px; left: 20px; right: 20px; bottom: 20px;
+    border: 3px solid rgba(255,215,0,0.6); border-radius: 12px;
+    pointer-events: none;
+  }
+
+  .logo { font-family: 'Playfair Display', serif; color: #FFD700; font-size: 36px; margin-bottom: 8px; letter-spacing: 2px; }
+  .subtitle { color: rgba(255,255,255,0.7); font-size: 13px; letter-spacing: 6px; text-transform: uppercase; margin-bottom: 40px; }
+
+  h1 { font-family: 'Playfair Display', serif; color: #FFD700; font-size: 48px; margin-bottom: 16px; text-align: center; }
+
+  .presented { color: rgba(255,255,255,0.7); font-size: 15px; margin-bottom: 16px; }
+  .student-name { font-family: 'Playfair Display', serif; color: #fff; font-size: 40px; margin-bottom: 24px; text-align: center; border-bottom: 2px solid rgba(255,215,0,0.5); padding-bottom: 16px; width: 80%; }
+
+  .course-info { color: rgba(255,255,255,0.85); font-size: 16px; text-align: center; line-height: 1.7; margin-bottom: 40px; }
+  .course-info strong { color: #FFD700; }
+
+  .footer { display: flex; justify-content: space-around; width: 100%; margin-top: 20px; }
+  .sig { display: flex; flex-direction: column; align-items: center; gap: 6px; }
+  .sig-line { width: 160px; height: 1px; background: rgba(255,215,0,0.5); }
+  .sig-name { color: #fff; font-size: 13px; font-weight: 600; }
+  .sig-role { color: rgba(255,255,255,0.5); font-size: 11px; }
+
+  .badge { position: absolute; top: 40px; right: 60px; text-align: center; }
+  .badge-circle { width: 80px; height: 80px; border-radius: 50%; border: 3px solid #FFD700; display: flex; align-items: center; justify-content: center; margin: 0 auto 4px; }
+  .badge-text { font-size: 11px; color: rgba(255,255,255,0.5); letter-spacing: 1px; }
+</style>
+</head>
+<body>
+<div class="certificate">
+  <div class="border"></div>
+
+  <div class="badge">
+    <div class="badge-circle">
+      <svg width="40" height="40" viewBox="0 0 40 40" fill="none">
+        <circle cx="20" cy="20" r="18" stroke="#FFD700" stroke-width="2"/>
+        <path d="M12 20l5 5 11-11" stroke="#FFD700" stroke-width="2.5" stroke-linecap="round"/>
+      </svg>
+    </div>
+    <div class="badge-text">VERIFICADO</div>
+  </div>
+
+  <div class="logo">Kreativ</div>
+  <div class="subtitle">Plataforma de Educação</div>
+
+  <h1>Certificado de Conclusão</h1>
+
+  <p class="presented">Certificamos que</p>
+  <div class="student-name">{{STUDENT_NAME}}</div>
+
+  <p class="course-info">
+    concluiu com êxito o módulo <strong>{{MODULE_NAME}}</strong><br>
+    do curso <strong>{{COURSE_NAME}}</strong><br>
+    em <strong>{{DATE}}</strong>
+  </p>
+
+  <div class="footer">
+    <div class="sig">
+      <div class="sig-line"></div>
+      <div class="sig-name">Kreativ Educação</div>
+      <div class="sig-role">Direção Acadêmica</div>
+    </div>
+    <div class="sig">
+      <div class="sig-line"></div>
+      <div class="sig-name">Código: {{CERT_ID}}</div>
+      <div class="sig-role">Autenticidade verificável</div>
+    </div>
+  </div>
+</div>
+</body>
+</html>
