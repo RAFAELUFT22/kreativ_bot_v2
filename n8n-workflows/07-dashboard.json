@@ -1,0 +1,149 @@
+{
+  "name": "Kreativ: Dashboard Monitoramento",
+  "nodes": [
+    {
+      "id": "dash-wh",
+      "name": "Webhook Dashboard",
+      "type": "n8n-nodes-base.webhook",
+      "position": [
+        240,
+        304
+      ],
+      "webhookId": "kreativ-dashboard",
+      "parameters": {
+        "path": "dashboard",
+        "options": {},
+        "httpMethod": "GET",
+        "responseMode": "responseNode"
+      },
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT\n  COUNT(*) as total,\n  COUNT(CASE WHEN attendance_status='human' THEN 1 END) as com_tutor,\n  COUNT(CASE WHEN attendance_status='bot' THEN 1 END) as com_bot,\n  COUNT(CASE WHEN current_module = 0 THEN 1 END) as nao_iniciados,\n  COUNT(CASE WHEN current_module = 1 THEN 1 END) as modulo_1,\n  COUNT(CASE WHEN current_module = 2 THEN 1 END) as modulo_2,\n  COUNT(CASE WHEN current_module = 3 THEN 1 END) as modulo_3,\n  COUNT(CASE WHEN current_module = 4 THEN 1 END) as modulo_4,\n  COUNT(CASE WHEN current_module >= 5 THEN 1 END) as modulo_5,\n  COUNT(CASE WHEN 5 = ANY(completed_modules) OR (scores::text != '{}' AND scores::text != 'null') THEN 1 END) as concluidos,\n  COUNT(CASE WHEN updated_at < NOW() - INTERVAL '7 days' THEN 1 END) as inativos_7d,\n  COUNT(CASE WHEN updated_at < NOW() - INTERVAL '3 days' AND updated_at >= NOW() - INTERVAL '7 days' THEN 1 END) as inativos_3d,\n  COUNT(CASE WHEN created_at >= NOW() - INTERVAL '7 days' THEN 1 END) as novos_semana\nFROM students",
+        "options": {}
+      },
+      "id": "dash-query",
+      "name": "Métricas DB",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        460,
+        304
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "lJaeEy4CpHbhgMAp",
+          "name": "Kreativ PostgreSQL"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT\n  event_type, COUNT(*) as total,\n  MAX(created_at) as ultimo\nFROM events_log\nWHERE created_at >= NOW() - INTERVAL '30 days'\nGROUP BY event_type ORDER BY total DESC LIMIT 10",
+        "options": {}
+      },
+      "id": "dash-events",
+      "name": "Eventos Recentes",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        460,
+        500
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "lJaeEy4CpHbhgMAp",
+          "name": "Kreativ PostgreSQL"
+        }
+      },
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "jsCode": "\nconst m = $('Métricas DB').item.json;\nconst now = new Date().toLocaleString('pt-BR', {timeZone:'America/Sao_Paulo'});\nconst prog = parseInt(m.modulo_1||0)+parseInt(m.modulo_2||0)+parseInt(m.modulo_3||0)+parseInt(m.modulo_4||0)+parseInt(m.modulo_5||0);\n\nconst bar = (v, total, color) => {\n  const pct = total > 0 ? Math.round((v/total)*100) : 0;\n  return `<div style=\"background:#eee;border-radius:4px;height:20px;margin:4px 0\">\n    <div style=\"background:${color};width:${pct}%;height:100%;border-radius:4px;display:flex;align-items:center;padding-left:6px;color:white;font-size:11px;min-width:30px\">${v}</div>\n  </div>`;\n};\n\nconst html = `<!DOCTYPE html>\n<html lang=\"pt-BR\">\n<head>\n<meta charset=\"UTF-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\">\n<title>Kreativ Educação — Painel</title>\n<meta http-equiv=\"refresh\" content=\"60\">\n<style>\n  *{box-sizing:border-box;margin:0;padding:0}\n  body{font-family:'Segoe UI',sans-serif;background:#0f172a;color:#e2e8f0;min-height:100vh}\n  .header{background:linear-gradient(135deg,#1e40af,#7c3aed);padding:24px 32px;display:flex;justify-content:space-between;align-items:center}\n  .header h1{font-size:24px;font-weight:700}\n  .header .ts{font-size:12px;opacity:.7}\n  .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:16px;padding:24px 32px}\n  .card{background:#1e293b;border-radius:12px;padding:20px;border:1px solid #334155}\n  .card h3{font-size:12px;text-transform:uppercase;letter-spacing:.5px;color:#94a3b8;margin-bottom:12px}\n  .big-num{font-size:48px;font-weight:700;line-height:1}\n  .label{font-size:13px;color:#64748b;margin-top:4px}\n  .row{display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid #334155}\n  .row:last-child{border:none}\n  .badge{padding:2px 8px;border-radius:20px;font-size:11px;font-weight:600}\n  .green{color:#4ade80}.red{color:#f87171}.yellow{color:#fbbf24}.blue{color:#60a5fa}\n  .bg-green{background:#14532d}.bg-blue{background:#1e3a5f}.bg-yellow{background:#451a03}.bg-red{background:#450a0a}\n  .funnel{padding:0 32px 24px}\n  .funnel h2{font-size:16px;font-weight:600;margin-bottom:16px;color:#94a3b8}\n  .funnel-item{background:#1e293b;border-radius:8px;padding:12px 16px;margin:6px 0;display:flex;justify-content:space-between;align-items:center;border-left:4px solid}\n  .refresh{font-size:11px;color:#475569;text-align:right;padding:0 32px 16px}\n</style>\n</head>\n<body>\n<div class=\"header\">\n  <div>\n    <h1>🎓 Kreativ Educação</h1>\n    <div style=\"font-size:14px;opacity:.8;margin-top:4px\">Painel de Monitoramento — IA no Dia a Dia</div>\n  </div>\n  <div class=\"ts\">Atualizado: ${now}<br><small>Atualiza automaticamente a cada 60s</small></div>\n</div>\n\n<div class=\"grid\">\n  <div class=\"card\">\n    <h3>Total de Alunos</h3>\n    <div class=\"big-num blue\">${m.total}</div>\n    <div class=\"label\">+${m.novos_semana} novos esta semana</div>\n  </div>\n  <div class=\"card\">\n    <h3>Em Progresso</h3>\n    <div class=\"big-num yellow\">${prog}</div>\n    <div class=\"label\">cursando agora</div>\n  </div>\n  <div class=\"card\">\n    <h3>Concluídos</h3>\n    <div class=\"big-num green\">${m.concluidos}</div>\n    <div class=\"label\">curso completo</div>\n  </div>\n  <div class=\"card\">\n    <h3>Com Tutor Agora</h3>\n    <div class=\"big-num red\">${m.com_tutor}</div>\n    <div class=\"label\">atendimento humano ativo</div>\n  </div>\n  <div class=\"card\">\n    <h3>Inativos</h3>\n    <div class=\"big-num\" style=\"color:#f97316\">${m.inativos_7d}</div>\n    <div class=\"label\">${m.inativos_3d} inativos 3-7d | ${m.inativos_7d} +7 dias</div>\n  </div>\n  <div class=\"card\">\n    <h3>Não Iniciados</h3>\n    <div class=\"big-num\" style=\"color:#64748b\">${m.nao_iniciados}</div>\n    <div class=\"label\">cadastrados sem início</div>\n  </div>\n</div>\n\n<div class=\"funnel\">\n  <h2>📊 Funil por Módulo</h2>\n  <div class=\"funnel-item\" style=\"border-color:#3b82f6\">\n    <span>Módulo 1 — O que é IA?</span>\n    <span class=\"badge bg-blue\">${m.modulo_1} alunos</span>\n  </div>\n  <div class=\"funnel-item\" style=\"border-color:#f59e0b\">\n    <span>Módulo 2 — Google Gemini</span>\n    <span class=\"badge bg-yellow\">${m.modulo_2} alunos</span>\n  </div>\n  <div class=\"funnel-item\" style=\"border-color:#ef4444\">\n    <span>Módulo 3 — Arte dos Prompts</span>\n    <span class=\"badge bg-red\">${m.modulo_3} alunos</span>\n  </div>\n  <div class=\"funnel-item\" style=\"border-color:#8b5cf6\">\n    <span>Módulo 4 — IA na Vida e no Trabalho</span>\n    <span class=\"badge\" style=\"background:#3b0764\">${m.modulo_4} alunos</span>\n  </div>\n  <div class=\"funnel-item\" style=\"border-color:#22c55e\">\n    <span>Módulo 5 — Avaliação Final</span>\n    <span class=\"badge bg-green\">${m.modulo_5} alunos</span>\n  </div>\n  <div class=\"funnel-item\" style=\"border-color:#10b981\">\n    <span>✅ Concluídos com Certificado</span>\n    <span class=\"badge bg-green\">${m.concluidos} alunos</span>\n  </div>\n</div>\n<div class=\"refresh\">Taxa de conclusão: ${m.total > 0 ? Math.round((m.concluidos/m.total)*100) : 0}% | Bot ativo: ${m.com_bot} | Com tutor: ${m.com_tutor}</div>\n</body></html>`;\n\nreturn [{ json: { html } }];\n"
+      },
+      "id": "dash-html",
+      "name": "Gerar HTML",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        900,
+        304
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "text",
+        "responseBody": "={{ $json.html }}",
+        "options": {
+          "responseHeaders": {
+            "entries": [
+              {
+                "name": "Content-Type",
+                "value": "text/html; charset=utf-8"
+              }
+            ]
+          }
+        }
+      },
+      "id": "dash-resp",
+      "name": "Retornar HTML",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [
+        1120,
+        304
+      ]
+    }
+  ],
+  "connections": {
+    "Webhook Dashboard": {
+      "main": [
+        [
+          {
+            "node": "Métricas DB",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Eventos Recentes",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Métricas DB": {
+      "main": [
+        [
+          {
+            "node": "Gerar HTML",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Gerar HTML": {
+      "main": [
+        [
+          {
+            "node": "Retornar HTML",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner",
+    "availableInMCP": false
+  },
+  "staticData": null
+}

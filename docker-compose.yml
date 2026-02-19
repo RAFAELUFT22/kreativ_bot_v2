@@ -312,21 +312,24 @@ services:
     command: npm run start:prod
     environment:
       LOCKBOX_KEY: ${LOCKBOX_KEY}
+      LOCKBOX_MASTER_KEY: ${LOCKBOX_KEY}
       SECRET_KEY_BASE: ${TOOLJET_SECRET_KEY}
-      PG_HOST: postgres
+      PG_HOST: kreativ_postgres
       PG_DB: ${TOOLJET_DB_NAME:-tooljet_db}
       PG_USER: ${POSTGRES_USER}
+      PG_PASS: ${POSTGRES_PASSWORD}
       PG_PASSWORD: ${POSTGRES_PASSWORD}
+      PGPASSWORD: ${POSTGRES_PASSWORD}
       PG_PORT: 5432
       PG_SSL: "false"
       TOOLJET_HOST: https://admin.extensionista.site
       DEPLOYMENT_PLATFORM: docker
       NODE_ENV: production
       TOOLJET_DB_USER: ${POSTGRES_USER}
-      TOOLJET_DB_HOST: postgres
+      TOOLJET_DB_HOST: kreativ_postgres
       TOOLJET_DB_PORT: 5432
       TOOLJET_DB_PASS: ${POSTGRES_PASSWORD}
-      TOOLJET_DB: ${TOOLJET_DB_NAME:-tooljet_db}
+      TOOLJET_DB: tooljet_internal_db
     networks:
       - kreativ_net
       - coolify
@@ -357,7 +360,7 @@ services:
       MB_DB_PORT: 5432
       MB_DB_USER: ${POSTGRES_USER}
       MB_DB_PASS: ${POSTGRES_PASSWORD}
-      MB_DB_HOST: postgres
+      MB_DB_HOST: kreativ_postgres
       MB_SITE_URL: https://dash.extensionista.site
       JAVA_OPTS: "-Xmx512m"
     networks:

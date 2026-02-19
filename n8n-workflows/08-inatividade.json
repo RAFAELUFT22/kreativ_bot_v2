@@ -1,0 +1,194 @@
+{
+  "name": "Kreativ: Lembrete Inatividade",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 10 * * *"
+            }
+          ]
+        }
+      },
+      "id": "inat-sched",
+      "name": "Diário 10h",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        240,
+        304
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT s.phone, s.name, s.current_module,\n  EXTRACT(DAY FROM NOW() - s.updated_at) as dias_inativo,\n  m.title as module_title\nFROM students s\nLEFT JOIN modules m ON m.course_id = s.course_id AND m.module_number = s.current_module\nWHERE s.attendance_status = 'bot'\n  AND s.updated_at < NOW() - INTERVAL '3 days'\n  AND s.current_module > 0\n  AND (s.scores IS NULL OR NOT (s.scores ? 'module_5'))\nLIMIT 50",
+        "options": {}
+      },
+      "id": "inat-query",
+      "name": "Alunos Inativos",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        460,
+        304
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "lJaeEy4CpHbhgMAp",
+          "name": "Kreativ PostgreSQL"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "batchSize": 5,
+        "options": {}
+      },
+      "id": "inat-batch",
+      "name": "Lotes de 5",
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        680,
+        304
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "\nconst s = $input.item.json;\nconst dias = Math.floor(s.dias_inativo || 3);\nconst nome = (s.name || 'Aluno').split(' ')[0];\nconst modulo = s.current_module || 1;\nconst titulo = s.module_title || `Módulo ${modulo}`;\n\nlet msg = '';\nif (dias >= 7) {\n  msg = `Saudades, ${nome}! 🌟\\n\\nFaz ${dias} dias que você não acessa seu curso de IA. Sabemos que a vida é corrida, mas seu aprendizado não precisa parar!\\n\\nVocê estava no *${titulo}*. Responda *CONTINUAR* para retomar de onde parou. Estamos aqui! 💪`;\n} else {\n  msg = `Oi, ${nome}! 👋\\n\\nPercebemos que você não continuou o curso nos últimos ${dias} dias. Que tal dar continuidade hoje?\\n\\nVocê estava no *${titulo}*. É rápido, prometo! 😊\\n\\nResponda *MODULO* para continuar.`;\n}\n\nreturn [{ json: { phone: s.phone, message: msg } }];\n"
+      },
+      "id": "inat-msg",
+      "name": "Montar Mensagem",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        900,
+        304
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://kreativ_evolution:8080/message/sendText/europs",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "EXr5OuEE2sBMbRo94LtWQfofvEF1gHUM"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ number: $json.phone, text: $json.message }) }}",
+        "options": {}
+      },
+      "id": "inat-send",
+      "name": "Enviar Lembrete",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1120,
+        304
+      ],
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "amount": 2,
+        "unit": "seconds"
+      },
+      "id": "inat-wait",
+      "name": "Aguardar 2s",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1,
+      "position": [
+        1340,
+        304
+      ]
+    }
+  ],
+  "connections": {
+    "Diário 10h": {
+      "main": [
+        [
+          {
+            "node": "Alunos Inativos",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Alunos Inativos": {
+      "main": [
+        [
+          {
+            "node": "Lotes de 5",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Lotes de 5": {
+      "main": [
+        [
+          {
+            "node": "Montar Mensagem",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Montar Mensagem": {
+      "main": [
+        [
+          {
+            "node": "Enviar Lembrete",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Enviar Lembrete": {
+      "main": [
+        [
+          {
+            "node": "Aguardar 2s",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Aguardar 2s": {
+      "main": [
+        [
+          {
+            "node": "Lotes de 5",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner",
+    "availableInMCP": false
+  },
+  "staticData": {
+    "node:Diário 10h": {
+      "recurrenceRules": []
+    }
+  }
+}

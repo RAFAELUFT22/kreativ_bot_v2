@@ -1,0 +1,124 @@
+{
+  "name": "Kreativ: Relatório Semanal",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 17 * * 5"
+            }
+          ]
+        }
+      },
+      "id": "rep-sched",
+      "name": "Sexta 17h",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        240,
+        304
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT\n  COUNT(*) as total,\n  COUNT(CASE WHEN created_at >= NOW()-INTERVAL '7 days' THEN 1 END) as novos_semana,\n  COUNT(CASE WHEN current_module >= 1 THEN 1 END) as em_progresso,\n  COUNT(CASE WHEN current_module >= 5 THEN 1 END) as modulo_5,\n  COUNT(CASE WHEN scores IS NOT NULL AND scores::text != '{}' AND scores::text != 'null' THEN 1 END) as concluidos,\n  COUNT(CASE WHEN attendance_status='human' THEN 1 END) as com_tutor,\n  COUNT(CASE WHEN updated_at < NOW()-INTERVAL '7 days' THEN 1 END) as inativos_7d,\n  COUNT(CASE WHEN current_module=1 THEN 1 END) as m1,\n  COUNT(CASE WHEN current_module=2 THEN 1 END) as m2,\n  COUNT(CASE WHEN current_module=3 THEN 1 END) as m3,\n  COUNT(CASE WHEN current_module=4 THEN 1 END) as m4\nFROM students",
+        "options": {}
+      },
+      "id": "rep-query",
+      "name": "Buscar Métricas",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        460,
+        304
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "lJaeEy4CpHbhgMAp",
+          "name": "Kreativ PostgreSQL"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "\nconst m = $input.item.json;\nconst today = new Date().toLocaleDateString('pt-BR');\nconst conv = m.total > 0 ? Math.round((m.concluidos/m.total)*100) : 0;\n\nconst html = `\n<div style=\"font-family:Arial,sans-serif;max-width:600px;margin:0 auto;background:#fff\">\n  <div style=\"background:linear-gradient(135deg,#1e40af,#7c3aed);padding:32px;text-align:center;color:white\">\n    <h1 style=\"margin:0;font-size:24px\">🎓 Kreativ Educação</h1>\n    <p style=\"margin:8px 0 0;opacity:.8\">Relatório Semanal — ${today}</p>\n  </div>\n  <div style=\"padding:24px\">\n    <h2 style=\"color:#1e293b;border-bottom:2px solid #e2e8f0;padding-bottom:8px\">📊 Resumo da Semana</h2>\n    <table style=\"width:100%;border-collapse:collapse;margin:16px 0\">\n      <tr style=\"background:#f8fafc\"><td style=\"padding:10px;color:#64748b\">Total de Alunos</td><td style=\"padding:10px;font-weight:700;font-size:18px;color:#1e40af\">${m.total}</td></tr>\n      <tr><td style=\"padding:10px;color:#64748b\">Novos esta semana</td><td style=\"padding:10px;font-weight:700;color:#22c55e\">+${m.novos_semana}</td></tr>\n      <tr style=\"background:#f8fafc\"><td style=\"padding:10px;color:#64748b\">Em progresso</td><td style=\"padding:10px;font-weight:700;color:#f59e0b\">${m.em_progresso}</td></tr>\n      <tr><td style=\"padding:10px;color:#64748b\">Concluídos</td><td style=\"padding:10px;font-weight:700;color:#22c55e\">${m.concluidos}</td></tr>\n      <tr style=\"background:#f8fafc\"><td style=\"padding:10px;color:#64748b\">Taxa de conclusão</td><td style=\"padding:10px;font-weight:700;color:#7c3aed\">${conv}%</td></tr>\n      <tr><td style=\"padding:10px;color:#64748b\">Inativos +7 dias</td><td style=\"padding:10px;font-weight:700;color:#ef4444\">${m.inativos_7d}</td></tr>\n      <tr style=\"background:#f8fafc\"><td style=\"padding:10px;color:#64748b\">Com tutor agora</td><td style=\"padding:10px;font-weight:700;color:#f97316\">${m.com_tutor}</td></tr>\n    </table>\n    <h2 style=\"color:#1e293b;border-bottom:2px solid #e2e8f0;padding-bottom:8px;margin-top:24px\">📚 Distribuição por Módulo</h2>\n    <table style=\"width:100%;border-collapse:collapse;margin:16px 0\">\n      <tr><td style=\"padding:8px;color:#64748b\">Módulo 1 — O que é IA?</td><td style=\"padding:8px;font-weight:600\">${m.m1} alunos</td></tr>\n      <tr style=\"background:#f8fafc\"><td style=\"padding:8px;color:#64748b\">Módulo 2 — Google Gemini</td><td style=\"padding:8px;font-weight:600\">${m.m2} alunos</td></tr>\n      <tr><td style=\"padding:8px;color:#64748b\">Módulo 3 — Arte dos Prompts</td><td style=\"padding:8px;font-weight:600\">${m.m3} alunos</td></tr>\n      <tr style=\"background:#f8fafc\"><td style=\"padding:8px;color:#64748b\">Módulo 4 — IA na Vida</td><td style=\"padding:8px;font-weight:600\">${m.m4} alunos</td></tr>\n      <tr><td style=\"padding:8px;color:#64748b\">Módulo 5 — Avaliação Final</td><td style=\"padding:8px;font-weight:600\">${m.modulo_5} alunos</td></tr>\n    </table>\n    <div style=\"background:#f0f9ff;border-radius:8px;padding:16px;margin-top:16px;border-left:4px solid #1e40af\">\n      <p style=\"margin:0;color:#1e40af;font-size:13px\">\n        🔗 <strong>Acessar painel completo:</strong>\n        <a href=\"https://n8n.extensionista.site/webhook/dashboard\" style=\"color:#1e40af\">n8n.extensionista.site/webhook/dashboard</a>\n      </p>\n    </div>\n  </div>\n  <div style=\"background:#f8fafc;padding:16px;text-align:center;color:#94a3b8;font-size:12px\">\n    Kreativ Educação — Sistema de Aprendizado via WhatsApp<br>\n    extensionista.site\n  </div>\n</div>`;\n\nreturn [{ json: { html, subject: `[Kreativ] Relatório Semanal — ${today} | ${m.total} alunos | ${conv}% conclusão` } }];\n"
+      },
+      "id": "rep-html",
+      "name": "Montar Email HTML",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        680,
+        304
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://kreativ_postfix:8025/send",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({\n  to: \"rafaloct@gmail.com\",\n  subject: $json.subject,\n  html: $json.html,\n  from: \"relatorio@extensionista.site\"\n}) }}",
+        "options": {}
+      },
+      "id": "rep-send",
+      "name": "Enviar Email",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        900,
+        304
+      ],
+      "continueOnFail": true
+    }
+  ],
+  "connections": {
+    "Sexta 17h": {
+      "main": [
+        [
+          {
+            "node": "Buscar Métricas",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Buscar Métricas": {
+      "main": [
+        [
+          {
+            "node": "Montar Email HTML",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Montar Email HTML": {
+      "main": [
+        [
+          {
+            "node": "Enviar Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner",
+    "availableInMCP": false
+  },
+  "staticData": {
+    "node:Sexta 17h": {
+      "recurrenceRules": []
+    }
+  }
+}

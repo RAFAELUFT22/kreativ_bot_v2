@@ -1,0 +1,162 @@
+{
+  "name": "Kreativ: Emitir Certificado",
+  "nodes": [
+    {
+      "id": "wh-emit-cert",
+      "name": "Webhook: emitir certificado",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        240,
+        300
+      ],
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "emit-certificate",
+        "responseMode": "onReceived",
+        "options": {}
+      },
+      "webhookId": "kreativ-emit-certificate"
+    },
+    {
+      "id": "pg-student-info",
+      "name": "Buscar dados do aluno",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2,
+      "position": [
+        460,
+        300
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT s.name, s.phone, c.name AS course_name, m.title AS module_name FROM students s JOIN modules m ON m.id = '{{ $json.body.moduleId }}'::uuid LEFT JOIN courses c ON c.id = m.course_id WHERE s.phone = '{{ $json.body.phone }}' LIMIT 1;",
+        "options": {}
+      },
+      "credentials": {
+        "postgres": {
+          "id": "lJaeEy4CpHbhgMAp",
+          "name": "Kreativ PostgreSQL"
+        }
+      }
+    },
+    {
+      "id": "code-gen-cert",
+      "name": "Gerar HTML do certificado",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        680,
+        300
+      ],
+      "parameters": {
+        "jsCode": "const data = $input.all()[0]?.json ?? {};\nconst webhook = $('Webhook: emitir certificado').all()[0]?.json?.body ?? {};\nconst certId = 'KRV-' + Math.random().toString(36).substring(2,10).toUpperCase();\nconst date = new Date().toLocaleDateString('pt-BR', { year:'numeric', month:'long', day:'numeric' });\n\n// Fetch the template from MinIO (public)\nconst templateUrl = 'http://kreativ_minio:9000/materiais/certificate-template.html';\nlet html;\ntry {\n  const resp = await fetch(templateUrl);\n  html = await resp.text();\n} catch(e) {\n  // Fallback: inline minimal template\n  html = `<!DOCTYPE html><html><body style='font-family:serif;text-align:center;padding:60px;'><h1 style='color:#2c3e50'>Certificado de Conclusão</h1><h2>Kreativ Educação</h2><p>Certificamos que <strong>${data.name ?? webhook.phone}</strong> concluiu o módulo <strong>${data.module_name ?? ''}</strong> do curso <strong>${data.course_name ?? ''}</strong> em ${date}.</p><p>Código: ${certId}</p></body></html>`;\n}\n\nhtml = html\n  .replace('{{STUDENT_NAME}}', data.name ?? webhook.phone)\n  .replace('{{MODULE_NAME}}', data.module_name ?? '')\n  .replace('{{COURSE_NAME}}', data.course_name ?? '')\n  .replace('{{DATE}}', date)\n  .replace('{{CERT_ID}}', certId);\n\n\n// Gerar URL do portal com os dados do certificado\nconst nameEncoded = encodeURIComponent(data.name ?? webhook.phone ?? '');\nconst moduloEncoded = encodeURIComponent(data.module_name ?? '');\nconst cursoEncoded = encodeURIComponent(data.course_name ?? 'Kreativ Educação');\nconst dateEncoded = encodeURIComponent(date);\nconst certPortalUrl = `https://portal.extensionista.site/certificado/${certId}?name=${nameEncoded}&modulo=${moduloEncoded}&curso=${cursoEncoded}&data=${dateEncoded}`;\n\nreturn [{ json: { html, certId, certPortalUrl, phone: data.phone ?? webhook.phone, studentName: data.name ?? webhook.phone } }];"
+      }
+    },
+    {
+      "id": "http-upload-minio",
+      "name": "Salvar HTML no MinIO",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        900,
+        300
+      ],
+      "parameters": {
+        "method": "PUT",
+        "url": "=http://kreativ_minio:9000/certificados/{{ $json.certId }}.html",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "text/html"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "raw",
+        "rawBody": "={{ $json.html }}",
+        "options": {
+          "allowUnauthorizedCerts": true
+        }
+      }
+    },
+    {
+      "id": "http-send-cert-wapp",
+      "name": "Enviar link do certificado",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        1120,
+        300
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "http://kreativ_evolution:8080/message/sendText/europs",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "EXr5OuEE2sBMbRo94LtWQfofvEF1gHUM"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ number: $('Gerar HTML do certificado').item.json.phone, text: '🏆 *Parabéns, ' + $('Gerar HTML do certificado').item.json.studentName + '!*\\n\\nSeu certificado de conclusão foi emitido!\\n\\n📜 Acesse seu certificado:\\n' + $('Gerar HTML do certificado').item.json.certPortalUrl + '\\n\\nCódigo de autenticidade: *' + $('Gerar HTML do certificado').item.json.certId + '*' }) }}"
+      }
+    }
+  ],
+  "connections": {
+    "Webhook: emitir certificado": {
+      "main": [
+        [
+          {
+            "node": "Buscar dados do aluno",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Buscar dados do aluno": {
+      "main": [
+        [
+          {
+            "node": "Gerar HTML do certificado",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Gerar HTML do certificado": {
+      "main": [
+        [
+          {
+            "node": "Salvar HTML no MinIO",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Salvar HTML no MinIO": {
+      "main": [
+        [
+          {
+            "node": "Enviar link do certificado",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "callerPolicy": "workflowsFromSameOwner",
+    "availableInMCP": false
+  },
+  "staticData": null
+}

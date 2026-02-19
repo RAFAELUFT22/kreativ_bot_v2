@@ -1,0 +1,122 @@
+{
+  "name": "Kreativ: Lead Scoring",
+  "nodes": [
+    {
+      "id": "wh-module-completed",
+      "name": "Webhook: módulo concluído",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        240,
+        300
+      ],
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "module-completed",
+        "responseMode": "onReceived",
+        "options": {}
+      },
+      "webhookId": "kreativ-module-completed"
+    },
+    {
+      "id": "pg-lead-scoring",
+      "name": "Calcular e salvar lead score",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2,
+      "position": [
+        460,
+        300
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "WITH progress AS (\n  SELECT s.phone,\n    COUNT(sp.module_id) FILTER (WHERE sp.completed = true) AS done,\n    COUNT(m.id) AS total\n  FROM students s\n  LEFT JOIN student_progress sp ON sp.student_phone = s.phone\n  LEFT JOIN modules m ON m.course_id = (SELECT course_id FROM modules WHERE id = sp.module_id LIMIT 1)\n  WHERE s.phone = '{{ $json.body.phone }}'\n  GROUP BY s.phone\n)\nUPDATE students SET\n  lead_score = LEAST(100, ROUND((done::float / NULLIF(total,0)) * 100)),\n  updated_at = NOW()\nFROM progress WHERE students.phone = progress.phone\nRETURNING students.phone, students.lead_score, students.name;",
+        "options": {}
+      },
+      "credentials": {
+        "postgres": {
+          "id": "lJaeEy4CpHbhgMAp",
+          "name": "Kreativ PostgreSQL"
+        }
+      }
+    },
+    {
+      "id": "code-score-msg",
+      "name": "Formatar mensagem conquista",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        680,
+        300
+      ],
+      "parameters": {
+        "jsCode": "const body = $('Webhook: módulo concluído').all()[0]?.json?.body ?? {};\nconst phone = String(body.phone ?? '');\nconst moduleNumber = body.moduleNumber ?? '';\nconst score = $input.all()[0]?.json?.lead_score ?? 0;\n\nlet emoji = '⭐';\nif (score >= 100) emoji = '🏆';\nelse if (score >= 75) emoji = '🥇';\nelse if (score >= 50) emoji = '🥈';\nelse if (score >= 25) emoji = '🥉';\n\nconst msg = `${emoji} *Parabéns!*\\n\\nVocê concluiu o Módulo ${moduleNumber} com sucesso!\\nSeu progresso atual: *${score}%*\\n\\nContinue assim! 🚀`;\n\nreturn [{ json: { phone, message: msg, score } }];"
+      }
+    },
+    {
+      "id": "http-wapp-congratulation",
+      "name": "Enviar parabéns WhatsApp",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        900,
+        300
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "http://kreativ_evolution:8080/message/sendText/europs",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "EXr5OuEE2sBMbRo94LtWQfofvEF1gHUM"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ number: $json.phone, text: $json.message }) }}"
+      }
+    }
+  ],
+  "connections": {
+    "Webhook: módulo concluído": {
+      "main": [
+        [
+          {
+            "node": "Calcular e salvar lead score",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Calcular e salvar lead score": {
+      "main": [
+        [
+          {
+            "node": "Formatar mensagem conquista",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Formatar mensagem conquista": {
+      "main": [
+        [
+          {
+            "node": "Enviar parabéns WhatsApp",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "callerPolicy": "workflowsFromSameOwner",
+    "availableInMCP": false
+  },
+  "staticData": null
+}

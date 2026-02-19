@@ -1,0 +1,313 @@
+{
+  "name": "Kreativ: Atualizar Label Chatwoot",
+  "nodes": [
+    {
+      "id": "lbl-wh",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "position": [
+        240,
+        304
+      ],
+      "webhookId": "kreativ-update-label",
+      "parameters": {
+        "path": "update-chatwoot-label",
+        "options": {},
+        "httpMethod": "POST",
+        "responseMode": "responseNode"
+      },
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "jsCode": "\nconst phone = $input.item.json.body.phone;\nconst label = $input.item.json.body.label; // ex: 'em-andamento-m1', 'concluido'\nconst moduleNum = $input.item.json.body.module_number;\n\n// Resolve label from module if not explicit\nlet finalLabel = label;\nif (!finalLabel && moduleNum) {\n  if (moduleNum >= 5) finalLabel = 'em-andamento-m5';\n  else finalLabel = `em-andamento-m${moduleNum}`;\n}\n\nreturn [{ json: { phone, label: finalLabel } }];\n"
+      },
+      "id": "lbl-prep",
+      "name": "Preparar dados",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        460,
+        304
+      ]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "http://10.0.1.11:3000/api/v1/accounts/2/contacts/search",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "api_access_token",
+              "value": "hh5bHLwTRyKoqZzAvaPUUm5v"
+            }
+          ]
+        },
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "q",
+              "value": "={{ $json.phone }}"
+            },
+            {
+              "name": "page",
+              "value": "1"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "lbl-search",
+      "name": "Buscar Contato Chatwoot",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        680,
+        304
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "\nconst phone = $('Preparar dados').item.json.phone;\nconst label = $('Preparar dados').item.json.label;\nconst body = $input.item.json;\nconst contacts = body.payload || [];\nconst contact = contacts.find(c =>\n  (c.phone_number || '').replace(/\\D/g,'').endsWith(phone.replace(/\\D/g,'').slice(-8))\n);\n\nif (!contact) return [{ json: { success: false, reason: 'Contact not found', phone } }];\n\nreturn [{ json: {\n  contact_id: contact.id,\n  label,\n  phone,\n  chatwoot_url: 'http://10.0.1.11:3000/api/v1/accounts/2/contacts/' + contact.id + '/conversations'\n} }];\n"
+      },
+      "id": "lbl-extract",
+      "name": "Extrair ID do Contato",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        900,
+        304
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ $json.contact_id }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "lbl-if",
+      "name": "Contato encontrado?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        1120,
+        304
+      ]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $json.chatwoot_url }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "api_access_token",
+              "value": "hh5bHLwTRyKoqZzAvaPUUm5v"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "lbl-convs",
+      "name": "Buscar Conversas",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1340,
+        304
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "\nconst contact_id = $('Extrair ID do Contato').item.json.contact_id;\nconst label = $('Extrair ID do Contato').item.json.label;\nconst body = $input.item.json;\nconst convs = (body.payload || {}).conversations || [];\n\n// Get the latest open conversation\nconst openConv = convs.find(c => c.status === 'open') || convs[0];\nif (!openConv) return [{ json: { success: false, reason: 'No conversation found', contact_id } }];\n\n// Remove progress labels and set new one\nconst progressLabels = ['novo-lead','em-andamento-m1','em-andamento-m2',\n  'em-andamento-m3','em-andamento-m4','em-andamento-m5',\n  'quiz-reprovado','aguardando-tutor','tutor-ativo','concluido','inativo-7d'];\n\nconst currentLabels = (openConv.labels || []).filter(l => !progressLabels.includes(l));\nconst newLabels = [...currentLabels, label];\n\nreturn [{ json: {\n  conversation_id: openConv.id,\n  labels: newLabels,\n  label_url: 'http://10.0.1.11:3000/api/v1/accounts/2/conversations/' + openConv.id + '/labels'\n} }];\n"
+      },
+      "id": "lbl-prep2",
+      "name": "Preparar Labels",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1560,
+        304
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $json.label_url }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "api_access_token",
+              "value": "hh5bHLwTRyKoqZzAvaPUUm5v"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ labels: $json.labels }) }}",
+        "options": {}
+      },
+      "id": "lbl-set",
+      "name": "Definir Labels na Conversa",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1780,
+        304
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ success: true, conversation_id: $json.conversation_id }) }}"
+      },
+      "id": "lbl-resp",
+      "name": "Responder OK",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [
+        2000,
+        304
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "{\"success\": false, \"reason\": \"Contact not found\"}"
+      },
+      "id": "lbl-resp-fail",
+      "name": "Responder Falha",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [
+        1340,
+        480
+      ]
+    }
+  ],
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Preparar dados",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Preparar dados": {
+      "main": [
+        [
+          {
+            "node": "Buscar Contato Chatwoot",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Buscar Contato Chatwoot": {
+      "main": [
+        [
+          {
+            "node": "Extrair ID do Contato",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extrair ID do Contato": {
+      "main": [
+        [
+          {
+            "node": "Contato encontrado?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Contato encontrado?": {
+      "main": [
+        [
+          {
+            "node": "Buscar Conversas",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Responder Falha",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Buscar Conversas": {
+      "main": [
+        [
+          {
+            "node": "Preparar Labels",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Preparar Labels": {
+      "main": [
+        [
+          {
+            "node": "Definir Labels na Conversa",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Definir Labels na Conversa": {
+      "main": [
+        [
+          {
+            "node": "Responder OK",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner",
+    "availableInMCP": false
+  },
+  "staticData": null
+}

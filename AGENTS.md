@@ -13,13 +13,13 @@ Alunos recebem módulos de conteúdo e quizzes diretamente no WhatsApp.
 Um bot (BuilderBot) conduz a trilha de aprendizagem. Quando o aluno pede ajuda,
 é transferido para um tutor humano (Chatwoot). Tudo orquestrado via N8N.
 
-**VPS**: Hostinger, IP `187.77.46.37`, 3.8GB RAM, 1 vCPU
+**VPS**: Hostinger, IP `187.77.46.37`, 7.8GB RAM, 1 vCPU (upgrade realizado)
 **Domínio principal**: `extensionista.site`
 **Painel de deploy**: Coolify em `http://187.77.46.37:8000`
 
 ---
 
-## 2. Arquitetura Atual (Estado em 18/02/2026)
+## 2. Arquitetura Atual (Estado em 19/02/2026)
 
 ```
 WhatsApp ─► Evolution API ─► N8N Router ─► BuilderBot ─► responde aluno
@@ -34,15 +34,16 @@ WhatsApp ─► Evolution API ─► N8N Router ─► BuilderBot ─► respond
 |---|---|---|---|
 | PostgreSQL + pgvector | `kreativ_postgres` | 5432 | interno |
 | Redis | `kreativ_redis` | 6379 | interno |
-| Evolution API v2 | `kreativ_evolution_api` | 8080 | https://evolution.extensionista.site |
+| Evolution API v2 | `kreativ_evolution` | 8080 | https://evolution.extensionista.site |
 | N8N | `kreativ_n8n` | 5678 | https://n8n.extensionista.site |
 | BuilderBot | `kreativ_builderbot` | 3008 | interno (chamado pelo N8N) |
 | MinIO | `kreativ_minio` | 9000/9001 | https://files.extensionista.site |
+| Chatwoot | `kreativ_chatwoot_app` | 3000 | https://suporte.extensionista.site |
+| ToolJet EE | `kreativ_tooljet` | 3000 | https://admin.extensionista.site |
+| Metabase | `kreativ_metabase` | 3000 | https://dash.extensionista.site |
+| Portal do Aluno (Next.js) | `kreativ_portal` | 3001 | https://portal.extensionista.site |
 
-### Serviços comentados / Fase 2 (requer ≥8GB RAM)
-- Chatwoot — `suporte.extensionista.site`
-- ToolJet — `admin.extensionista.site`
-- Metabase — `dash.extensionista.site`
+> **TODOS os serviços ativos** — VPS tem 7.8GB RAM após upgrade
 
 ---
 
@@ -171,11 +172,24 @@ N8N_API_KEY=...  # obter em: https://n8n.extensionista.site/settings/api
 
 Acesse: `https://n8n.extensionista.site` (credenciais no `.env`)
 
-| ID | Nome | Função |
-|---|---|---|
-| `oeM02qpKdIGFbGQX` | N8N Router | Roteador principal: BuilderBot vs DeepSeek vs pausado |
-| `oDg2TF7C0ne12fFg` | get-student-module | Busca módulo atual e conteúdo do aluno |
-| `sKXwOHDHjEadXQD0` | submit-quiz-answer | Valida resposta do quiz e atualiza progresso |
+| ID | Nome | Webhook Path | Função |
+|---|---|---|---|
+| `oeM02qpKdIGFbGQX` | WhatsApp Router | — (Evolution webhook) | Roteador principal: BuilderBot vs DeepSeek vs pausado |
+| `oDg2TF7C0ne12fFg` | get-student-module | `/webhook/get-student-module` | Busca módulo atual, conteúdo e quizQuestions |
+| `sKXwOHDHjEadXQD0` | submit-quiz-answer | `/webhook/submit-quiz-answer` | Valida quiz, dispara lead-scoring e certificado |
+| `04ZmheF5PCJr52aI` | request-human-support | `/webhook/request-human-support` | Aciona tutor humano via Chatwoot |
+| `9SQfSnUNWOc3SKFT` | Atualizar Label Chatwoot | `/webhook/update-chatwoot-label` | Atualiza label do contato no Chatwoot |
+| `krpsi0uW7fMhxj5T` | Cadastrar Aluno | `/webhook/enroll-student` | Cadastra aluno (aceita array para bulk) |
+| `QVrgXdevaAwnykPn` | Dashboard Monitoramento | `GET /webhook/dashboard` | Dashboard HTML com auto-refresh 60s |
+| `FDkc4gh7kp6hKZ3E` | Lembrete Inatividade | cron 10h diário | Envia lembrete para alunos inativos |
+| `HCnfOkbtviheBGBk` | Relatório Semanal | cron 17h sexta | Relatório semanal por email/WhatsApp |
+| `zOSTJqpGI87IKmkm` | Chatwoot → Retomar Bot | `/webhook/chatwoot-events` | Retoma bot quando tutor fecha conversa |
+| `cj1N7ZPVoDxlI7Sk` | Lead Scoring | `/webhook/module-completed` | Atualiza score e label Chatwoot |
+| `yKcjMnH87VsO5n9V` | Emitir Certificado | `/webhook/emit-certificate` | Gera HTML, salva MinIO, envia link WhatsApp |
+
+**Fluxo certificado**: `submit-quiz-answer` → `module-completed` (lead scoring) → `emit-certificate` → URL: `https://portal.extensionista.site/certificado/{certId}?name=...`
+
+> **Arquivos exportados**: `n8n-workflows/01-*.json` até `12-*.json` (12 workflows)
 
 Para editar workflows via API N8N:
 ```bash
@@ -223,14 +237,36 @@ WHERE phone = 'PHONE';
 
 ---
 
-## 9. Como Fazer Deploy de Mudanças
+## 9. ToolJet e Metabase (Painel Admin / Dashboards)
+
+### ToolJet — https://admin.extensionista.site
+- Painel de administração low-code
+- Login: configurar na primeira vez em https://admin.extensionista.site
+- **Variáveis críticas** (docker-compose.yml):
+  - `PG_HOST: kreativ_postgres` (NÃO `postgres` — IPv6 issue!)
+  - `PG_PASS: ${POSTGRES_PASSWORD}` (script usa PG_PASS não PG_PASSWORD)
+  - `LOCKBOX_MASTER_KEY: ${LOCKBOX_KEY}` (encryption key para migrações)
+  - `TOOLJET_DB: tooljet_internal_db` (deve ser DIFERENTE de PG_DB!)
+
+### Metabase — https://dash.extensionista.site
+- Dashboards analíticos
+- `MB_DB_HOST: kreativ_postgres` (NÃO `postgres` — IPv6 issue!)
+- Setup inicial: acessar URL e configurar admin + conectar ao kreativ_edu
+
+### ATENÇÃO: hostname `postgres` → IPv6
+O Docker resolve `postgres` para IPv6 (`fd9e:4404:9d55::2`), mas pg_hba.conf
+só aceita md5 para conexões externas. Use SEMPRE `kreativ_postgres` como hostname.
+
+---
+
+## 10. Como Fazer Deploy de Mudanças
 
 ### BuilderBot (código TypeScript)
 ```bash
 # Editar arquivos em apps/builderbot/src/
 # Reconstruir container
-docker compose -f /root/ideias_app/docker-compose.yml build builderbot
-docker compose -f /root/ideias_app/docker-compose.yml up -d builderbot
+docker compose build builderbot
+docker compose up -d builderbot
 
 # Verificar logs
 docker logs kreativ_builderbot -f --tail 50

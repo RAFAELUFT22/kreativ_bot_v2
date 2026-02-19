@@ -1,0 +1,215 @@
+{
+  "name": "Kreativ: Cadastrar Aluno",
+  "nodes": [
+    {
+      "id": "en-wh",
+      "name": "Webhook Cadastro",
+      "type": "n8n-nodes-base.webhook",
+      "position": [
+        240,
+        304
+      ],
+      "webhookId": "kreativ-enroll-student",
+      "parameters": {
+        "path": "enroll-student",
+        "options": {},
+        "httpMethod": "POST",
+        "responseMode": "responseNode"
+      },
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "jsCode": "\nconst body = $input.item.json.body;\n// Suporta array (importação em massa) ou objeto único\nconst students = Array.isArray(body) ? body : [body];\nconst results = [];\nfor (const s of students) {\n  const phone = (s.phone || s.whatsapp || s.telefone_whatsapp || '').replace(/\\D/g,'');\n  const name = s.name || s.nome || 'Aluno';\n  const course_id = String(s.course_id || s.curso_id || '19');\n  const email = s.email || null;\n  if (!phone) continue;\n  results.push({ phone, name, course_id, email });\n}\nreturn results.map(r => ({ json: r }));\n"
+      },
+      "id": "en-parse",
+      "name": "Normalizar Dados",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        460,
+        304
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO students (phone, name, course_id, current_module, attendance_status, email)\nVALUES ('{{ $json.phone }}', '{{ $json.name }}', '{{ $json.course_id }}', 1, 'bot', {{ $json.email ? \"'\" + $json.email + \"'\" : 'NULL' }})\nON CONFLICT (phone) DO UPDATE SET\n  name = COALESCE(EXCLUDED.name, students.name),\n  course_id = COALESCE(EXCLUDED.course_id, students.course_id),\n  updated_at = NOW()\nRETURNING id, phone, name, course_id, current_module",
+        "options": {}
+      },
+      "id": "en-db",
+      "name": "Upsert Aluno DB",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        680,
+        304
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "lJaeEy4CpHbhgMAp",
+          "name": "Kreativ PostgreSQL"
+        }
+      },
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "jsCode": "\nconst student = $input.item.json;\nconst phone = student.phone;\n\n// Create contact in Chatwoot\nreturn [{ json: {\n  phone,\n  name: student.name,\n  chatwoot_payload: {\n    name: student.name,\n    phone_number: '+' + phone,\n    identifier: phone\n  }\n} }];\n"
+      },
+      "id": "en-cw-prep",
+      "name": "Preparar Contato Chatwoot",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        900,
+        304
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://10.0.1.11:3000/api/v1/accounts/2/contacts",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "api_access_token",
+              "value": "hh5bHLwTRyKoqZzAvaPUUm5v"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.chatwoot_payload) }}",
+        "options": {}
+      },
+      "id": "en-cw-contact",
+      "name": "Criar Contato Chatwoot",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1120,
+        304
+      ],
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://kreativ_evolution:8080/message/sendText/europs",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "EXr5OuEE2sBMbRo94LtWQfofvEF1gHUM"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({\n  number: $('Normalizar Dados').item.json.phone,\n  text: \"Olá, \" + $('Normalizar Dados').item.json.name + \"! 👋\\n\\nVocê foi matriculado(a) no curso *IA no Dia a Dia* da Kreativ Educação! 🎓\\n\\nPara começar sua jornada de aprendizado, responda *MODULO* a qualquer momento.\\n\\nQualquer dúvida, estou aqui! 😊\"\n}) }}",
+        "options": {}
+      },
+      "id": "en-msg",
+      "name": "Enviar Boas-vindas WhatsApp",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1340,
+        304
+      ],
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({\n  success: true,\n  message: \"Aluno cadastrado com sucesso\",\n  student: $('Upsert Aluno DB').item.json\n}) }}"
+      },
+      "id": "en-resp",
+      "name": "Responder Sucesso",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [
+        1560,
+        304
+      ]
+    }
+  ],
+  "connections": {
+    "Webhook Cadastro": {
+      "main": [
+        [
+          {
+            "node": "Normalizar Dados",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Normalizar Dados": {
+      "main": [
+        [
+          {
+            "node": "Upsert Aluno DB",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Upsert Aluno DB": {
+      "main": [
+        [
+          {
+            "node": "Preparar Contato Chatwoot",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Preparar Contato Chatwoot": {
+      "main": [
+        [
+          {
+            "node": "Criar Contato Chatwoot",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Criar Contato Chatwoot": {
+      "main": [
+        [
+          {
+            "node": "Enviar Boas-vindas WhatsApp",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Enviar Boas-vindas WhatsApp": {
+      "main": [
+        [
+          {
+            "node": "Responder Sucesso",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner",
+    "availableInMCP": false
+  },
+  "staticData": null
+}
