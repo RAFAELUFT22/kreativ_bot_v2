@@ -1,0 +1,35 @@
+ Container kreativ_redis Running 
+ Container kreativ_postgres Running 
+ Container kreativ_postgres Waiting 
+ Container kreativ_redis Waiting 
+ Container kreativ_redis Healthy 
+ Container kreativ_postgres Healthy 
+ Container ideias_app-chatwoot-app-run-5418dd533298 Creating 
+ Container ideias_app-chatwoot-app-run-5418dd533298 Created 
+/gems/ruby/3.4.0/gems/reline-0.3.6/lib/reline/terminfo.rb:2: warning: /usr/local/lib/ruby/3.4.0/fiddle.rb was loaded from the standard library, but will no longer be part of the default gems starting from Ruby 3.5.0.
+You can add fiddle to your Gemfile or gemspec to silence this warning.
+Also please contact the author of reline-0.3.6 to request adding fiddle into its gemspec.
+W, [2026-02-19T13:54:59.558153 #1]  WARN -- : 
+!!! RubyLLM's legacy acts_as API is deprecated and will be removed in RubyLLM 2.0.0. Please consult the migration guide at https://rubyllm.com/upgrading-to-1-7/
+
+== 20250416182131 FlipChatwootV4DefaultFeatureFlagInstallationConfig: migrating 
+== 20250416182131 FlipChatwootV4DefaultFeatureFlagInstallationConfig: migrated (2.3000s) 
+
+== 20250421082927 AddSettingsColumnToAccount: migrating =======================
+-- add_column(:accounts, :settings, :jsonb, {default: {}})
+bin/rails aborted!
+StandardError: An error has occurred, this and all later migrations canceled: (StandardError)
+
+PG::DuplicateColumn: ERROR:  column "settings" of relation "accounts" already exists
+/app/db/migrate/20250421082927_add_settings_column_to_account.rb:3:in 'AddSettingsColumnToAccount#change'
+
+Caused by:
+ActiveRecord::StatementInvalid: PG::DuplicateColumn: ERROR:  column "settings" of relation "accounts" already exists (ActiveRecord::StatementInvalid)
+/app/db/migrate/20250421082927_add_settings_column_to_account.rb:3:in 'AddSettingsColumnToAccount#change'
+
+Caused by:
+PG::DuplicateColumn: ERROR:  column "settings" of relation "accounts" already exists (PG::DuplicateColumn)
+/app/db/migrate/20250421082927_add_settings_column_to_account.rb:3:in 'AddSettingsColumnToAccount#change'
+Tasks: TOP => db:migrate
+(See full trace by running task with --trace)
+

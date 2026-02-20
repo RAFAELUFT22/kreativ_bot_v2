@@ -231,7 +231,7 @@
         "url": "http://chatwoot-app:3000/api/v1/accounts/2/conversations",
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify({ source_id: $('Unir dados contato').first().json.contactId, inbox_id: 2, status: 'open' }) }}",
+        "jsonBody": "={{ JSON.stringify({ source_id: $('Unir dados contato').first().json.contactId, inbox_id: 1, status: 'open' }) }}",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [

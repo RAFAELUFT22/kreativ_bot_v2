@@ -1,0 +1,86 @@
+{
+    "name": "Kreativ: Clone Postgres",
+    "nodes": [
+        {
+            "parameters": {
+                "httpMethod": "POST",
+                "path": "ai-tutor-v2",
+                "responseMode": "onReceived",
+                "options": {}
+            },
+            "id": "webhook-clone",
+            "name": "Webhook",
+            "type": "n8n-nodes-base.webhook",
+            "typeVersion": 2,
+            "position": [
+                200,
+                300
+            ],
+            "webhookId": "kreativ-clone-postgres"
+        },
+        {
+            "parameters": {
+                "jsCode": "return [{ json: { phone: '556399374165' } }];"
+            },
+            "id": "transformer-clone",
+            "name": "Transformer",
+            "type": "n8n-nodes-base.code",
+            "typeVersion": 2,
+            "position": [
+                400,
+                300
+            ]
+        },
+        {
+            "parameters": {
+                "operation": "executeQuery",
+                "query": "={{ \"SELECT 1 as test FROM students WHERE phone = '\" + $json.phone + \"' LIMIT 1\" }}",
+                "options": {}
+            },
+            "id": "postgres-clone",
+            "name": "Postgres Clone",
+            "type": "n8n-nodes-base.postgres",
+            "typeVersion": 2.6,
+            "position": [
+                600,
+                300
+            ],
+            "credentials": {
+                "postgres": {
+                    "id": "lJaeEy4CpHbhgMAp",
+                    "name": "Kreativ PostgreSQL"
+                }
+            },
+            "continueOnFail": true
+        }
+    ],
+    "connections": {
+        "Webhook": {
+            "main": [
+                [
+                    {
+                        "node": "Transformer",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Transformer": {
+            "main": [
+                [
+                    {
+                        "node": "Postgres Clone",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        }
+    },
+    "settings": {
+        "executionOrder": "v1",
+        "saveManualExecutions": true,
+        "callerPolicy": "workflowsFromSameOwner"
+    }
+}

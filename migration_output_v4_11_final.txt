@@ -1,0 +1,289 @@
+ Container kreativ_postgres Running 
+ Container kreativ_redis Running 
+ Container kreativ_postgres Waiting 
+ Container kreativ_redis Waiting 
+ Container kreativ_redis Healthy 
+ Container kreativ_postgres Healthy 
+ Container ideias_app-chatwoot-app-run-ca70e539c3ae Creating 
+ Container ideias_app-chatwoot-app-run-ca70e539c3ae Created 
+/gems/ruby/3.4.0/gems/reline-0.3.6/lib/reline/terminfo.rb:2: warning: /usr/local/lib/ruby/3.4.0/fiddle.rb was loaded from the standard library, but will no longer be part of the default gems starting from Ruby 3.5.0.
+You can add fiddle to your Gemfile or gemspec to silence this warning.
+Also please contact the author of reline-0.3.6 to request adding fiddle into its gemspec.
+W, [2026-02-19T13:55:25.629799 #1]  WARN -- : 
+!!! RubyLLM's legacy acts_as API is deprecated and will be removed in RubyLLM 2.0.0. Please consult the migration guide at https://rubyllm.com/upgrading-to-1-7/
+
+== 20250421085134 UpdateAutoResolveToMminutes: migrating ======================
+== 20250421085134 UpdateAutoResolveToMminutes: migrated (1.6517s) =============
+
+== 20250512231036 CreateCopilotThreads: migrating =============================
+-- create_table(:copilot_threads)
+   -> 0.0101s
+-- add_index(:copilot_threads, :uuid, {unique: true, name: "index_copilot_threads_on_uuid"})
+   -> 0.0011s
+== 20250512231036 CreateCopilotThreads: migrated (0.0113s) ====================
+
+== 20250512231037 CreateCopilotMessages: migrating ============================
+-- create_table(:copilot_messages)
+   -> 0.0073s
+== 20250512231037 CreateCopilotMessages: migrated (0.0074s) ===================
+
+== 20250514045638 AddCsatConfigToInboxes: migrating ===========================
+-- add_column(:inboxes, :csat_config, :jsonb, {default: {}, null: false})
+   -> 0.0017s
+== 20250514045638 AddCsatConfigToInboxes: migrated (0.0018s) ==================
+
+== 20250523024825 RemoveUuidFromCopilotThreads: migrating =====================
+-- remove_column(:copilot_threads, :uuid, :string)
+   -> 0.0010s
+-- add_column(:copilot_threads, :assistant_id, :integer)
+   -> 0.0006s
+-- add_index(:copilot_threads, :assistant_id)
+   -> 0.0014s
+== 20250523024825 RemoveUuidFromCopilotThreads: migrated (0.0031s) ============
+
+== 20250523024826 RemoveUserIdFromCopilotMessages: migrating ==================
+-- remove_reference(:copilot_messages, :user, {index: true})
+   -> 0.0007s
+== 20250523024826 RemoveUserIdFromCopilotMessages: migrated (0.0010s) =========
+
+== 20250523031839 ChangeMessageTypeToIntegerInCopilotMessages: migrating ======
+-- remove_column(:copilot_messages, :message_type)
+   -> 0.0005s
+-- add_column(:copilot_messages, :message_type, :integer, {default: 0})
+   -> 0.0006s
+== 20250523031839 ChangeMessageTypeToIntegerInCopilotMessages: migrated (0.0012s) 
+
+== 20250620120000 CreateChannelVoice: migrating ===============================
+-- create_table(:channel_voice)
+   -> 0.0037s
+-- add_index(:channel_voice, :phone_number, {unique: true, name: "index_channel_voice_on_phone_number"})
+   -> 0.0011s
+-- add_index(:channel_voice, :account_id, {name: "index_channel_voice_on_account_id"})
+   -> 0.0014s
+== 20250620120000 CreateChannelVoice: migrated (0.0064s) ======================
+
+== 20250627195529 AddIndexToMessages: migrating ===============================
+-- index_exists?(:messages, [:account_id, :content_type, :created_at], {name: "idx_messages_account_content_created"})
+   -> 0.0038s
+-- add_index(:messages, [:account_id, :content_type, :created_at], {name: "idx_messages_account_content_created", algorithm: :concurrently})
+   -> 0.0028s
+== 20250627195529 AddIndexToMessages: migrated (0.0066s) ======================
+
+== 20250709102213 AddTemplateParamsToCampaigns: migrating =====================
+-- add_column(:campaigns, :template_params, :jsonb)
+   -> 0.0006s
+== 20250709102213 AddTemplateParamsToCampaigns: migrated (0.0006s) ============
+
+== 20250710145708 CreateCaptainScenarios: migrating ===========================
+-- create_table(:captain_scenarios)
+   -> 0.0056s
+-- add_index(:captain_scenarios, :enabled)
+   -> 0.0013s
+-- add_index(:captain_scenarios, [:assistant_id, :enabled])
+   -> 0.0012s
+== 20250710145708 CreateCaptainScenarios: migrated (0.0082s) ==================
+
+== 20250714104358 AddResponseGuidelinesAndGuardrailsToCaptainAssistants: migrating 
+-- add_column(:captain_assistants, :response_guidelines, :jsonb, {default: []})
+   -> 0.0008s
+-- add_column(:captain_assistants, :guardrails, :jsonb, {default: []})
+   -> 0.0008s
+== 20250714104358 AddResponseGuidelinesAndGuardrailsToCaptainAssistants: migrated (0.0017s) 
+
+== 20250722083820 AddSslSettingsToPortals: migrating ==========================
+-- add_column(:portals, :ssl_settings, :jsonb, {default: {}, null: false})
+   -> 0.0008s
+== 20250722083820 AddSslSettingsToPortals: migrated (0.0009s) =================
+
+== 20250722152516 AddIndexOnContactTypeAndAccountIdToContacts: migrating ======
+-- add_index(:contacts, [:account_id, :contact_type], {name: "index_contacts_on_account_id_and_contact_type", algorithm: :concurrently})
+   -> 0.0030s
+== 20250722152516 AddIndexOnContactTypeAndAccountIdToContacts: migrated (0.0030s) 
+
+== 20250805082345 AddMetadataToCaptainDocuments: migrating ====================
+-- add_column(:captain_documents, :metadata, :jsonb, {default: {}})
+   -> 0.0008s
+== 20250805082345 AddMetadataToCaptainDocuments: migrated (0.0009s) ===========
+
+== 20250805160307 AddNotificationsPerformanceIndex: migrating =================
+-- add_index(:notifications, [:user_id, :account_id, :snoozed_until, :read_at], {name: "idx_notifications_performance", algorithm: :concurrently})
+   -> 0.0025s
+== 20250805160307 AddNotificationsPerformanceIndex: migrated (0.0026s) ========
+
+== 20250806140000 CreateAssignmentPolicies: migrating =========================
+-- create_table(:assignment_policies)
+   -> 0.0073s
+-- add_index(:assignment_policies, [:account_id, :name], {unique: true})
+   -> 0.0012s
+-- add_index(:assignment_policies, :enabled)
+   -> 0.0013s
+== 20250806140000 CreateAssignmentPolicies: migrated (0.0099s) ================
+
+== 20250806140001 CreateInboxAssignmentPolicies: migrating ====================
+-- create_table(:inbox_assignment_policies)
+   -> 0.0041s
+== 20250806140001 CreateInboxAssignmentPolicies: migrated (0.0042s) ===========
+
+== 20250806140002 CreateAgentCapacityPolicies: migrating ======================
+-- create_table(:agent_capacity_policies)
+   -> 0.0043s
+== 20250806140002 CreateAgentCapacityPolicies: migrated (0.0044s) =============
+
+== 20250806140003 CreateInboxCapacityLimits: migrating ========================
+-- create_table(:inbox_capacity_limits)
+   -> 0.0039s
+-- add_index(:inbox_capacity_limits, [:agent_capacity_policy_id, :inbox_id], {unique: true})
+   -> 0.0012s
+== 20250806140003 CreateInboxCapacityLimits: migrated (0.0053s) ===============
+
+== 20250806140004 AddAgentCapacityPolicyToAccountUsers: migrating =============
+-- add_reference(:account_users, :agent_capacity_policy, {null: true, index: true})
+   -> 0.0018s
+== 20250806140004 AddAgentCapacityPolicyToAccountUsers: migrated (0.0019s) ====
+
+== 20250806140005 CreateLeaves: migrating =====================================
+-- create_table(:leaves)
+   -> 0.0076s
+-- add_index(:leaves, [:account_id, :status])
+   -> 0.0013s
+== 20250806140005 CreateLeaves: migrated (0.0090s) ============================
+
+== 20250808123008 AddFeatureCitationToAssistantConfig: migrating ==============
+== 20250808123008 AddFeatureCitationToAssistantConfig: migrated (0.0173s) =====
+
+== 20250820130619 AddTwoFactorToUsers: migrating ==============================
+-- add_column(:users, :otp_secret, :string)
+   -> 0.0011s
+-- add_column(:users, :consumed_timestep, :integer)
+   -> 0.0005s
+-- add_column(:users, :otp_required_for_login, :boolean, {default: false, null: false})
+   -> 0.0009s
+-- add_column(:users, :otp_backup_codes, :text)
+   -> 0.0005s
+-- add_index(:users, :otp_secret, {unique: true})
+   -> 0.0018s
+-- add_index(:users, :otp_required_for_login)
+   -> 0.0014s
+== 20250820130619 AddTwoFactorToUsers: migrated (0.0066s) =====================
+
+== 20250822061042 AddContentTemplatesToTwilioSms: migrating ===================
+-- add_column(:channel_twilio_sms, :content_templates, :jsonb, {default: {}})
+   -> 0.0014s
+-- add_column(:channel_twilio_sms, :content_templates_last_updated, :datetime)
+   -> 0.0003s
+== 20250822061042 AddContentTemplatesToTwilioSms: migrated (0.0018s) ==========
+
+== 20250825070005 CreateAccountSamlSettings: migrating ========================
+-- create_table(:account_saml_settings)
+   -> 0.0045s
+== 20250825070005 CreateAccountSamlSettings: migrated (0.0046s) ===============
+
+== 20250826000000 DropTelegramBots: migrating =================================
+-- drop_table(:telegram_bots)
+   -> 0.0011s
+== 20250826000000 DropTelegramBots: migrated (0.0011s) ========================
+
+== 20250916024703 AddAllowedDomainsToChannelWidgets: migrating ================
+-- add_column(:channel_web_widgets, :allowed_domains, :text, {default: ""})
+   -> 0.0013s
+== 20250916024703 AddAllowedDomainsToChannelWidgets: migrated (0.0016s) =======
+
+== 20250917012759 AddVerifiedToChannelEmail: migrating ========================
+-- add_column(:channel_email, :verified_for_sending, :boolean, {default: false, null: false})
+   -> 0.0012s
+== 20250917012759 AddVerifiedToChannelEmail: migrated (0.0015s) ===============
+
+== 20250929105219 CreateCompanies: migrating ==================================
+-- create_table(:companies)
+   -> 0.0059s
+-- add_index(:companies, [:name, :account_id])
+   -> 0.0022s
+-- add_index(:companies, [:domain, :account_id])
+   -> 0.0017s
+== 20250929105219 CreateCompanies: migrated (0.0108s) =========================
+
+== 20250929132305 AddCompanyToContacts: migrating =============================
+-- add_reference(:contacts, :company, {null: true})
+   -> 0.0026s
+== 20250929132305 AddCompanyToContacts: migrated (0.0028s) ====================
+
+== 20251003091242 CreateCaptainCustomTools: migrating =========================
+-- create_table(:captain_custom_tools)
+   -> 0.0079s
+-- add_index(:captain_custom_tools, [:account_id, :slug], {unique: true})
+   -> 0.0012s
+== 20251003091242 CreateCaptainCustomTools: migrated (0.0095s) ================
+
+== 20251010143218 AddNameToWebhooks: migrating ================================
+-- add_column(:webhooks, :name, :string, {null: true})
+   -> 0.0006s
+== 20251010143218 AddNameToWebhooks: migrated (0.0007s) =======================
+
+== 20251021082242 AddUniqueIndexToCompaniesDomain: migrating ==================
+-- remove_index(:companies, {name: "index_companies_on_domain_and_account_id", if_exists: true})
+   -> 0.0037s
+-- add_index(:companies, [:account_id, :domain], {unique: true, name: "index_companies_on_account_and_domain", where: "domain IS NOT NULL"})
+   -> 0.0031s
+== 20251021082242 AddUniqueIndexToCompaniesDomain: migrated (0.0069s) =========
+
+== 20251022152158 AddIndexToConversationsIdentifier: migrating ================
+-- add_index(:conversations, [:identifier, :account_id], {name: "index_conversations_on_identifier_and_account_id", algorithm: :concurrently})
+   -> 0.0026s
+== 20251022152158 AddIndexToConversationsIdentifier: migrated (0.0027s) =======
+
+== 20251022162159 AddAssigneeAgentBotIdToConversations: migrating =============
+-- add_column(:conversations, :assignee_agent_bot_id, :bigint)
+   -> 0.0007s
+== 20251022162159 AddAssigneeAgentBotIdToConversations: migrated (0.0008s) ====
+
+== 20251027091242 AddTiktokChannel: migrating =================================
+-- create_table(:channel_tiktok)
+   -> 0.0033s
+-- add_index(:channel_tiktok, :business_id, {unique: true})
+   -> 0.0012s
+== 20251027091242 AddTiktokChannel: migrated (0.0046s) ========================
+
+== 20251111094402 AddContactsCountToCompanies: migrating ======================
+-- add_column(:companies, :contacts_count, :integer, {default: 0, null: false})
+   -> 0.0008s
+== 20251111094402 AddContactsCountToCompanies: migrated (0.0008s) =============
+
+== 20251114173609 ChangeSourceIdToText: migrating =============================
+-- change_column(:contact_inboxes, :source_id, :text, {null: false})
+   -> 0.0018s
+== 20251114173609 ChangeSourceIdToText: migrated (0.0018s) ====================
+
+== 20251119161025 ChangeMessagesSourceIdToText: migrating =====================
+-- change_column(:messages, :source_id, :text)
+   -> 0.0010s
+== 20251119161025 ChangeMessagesSourceIdToText: migrated (0.0011s) ============
+
+== 20251229081141 ChangeWebhookUrlToText: migrating ===========================
+-- change_column(:webhooks, :url, :text)
+   -> 0.0014s
+== 20251229081141 ChangeWebhookUrlToText: migrated (0.0014s) ==================
+
+== 20260112092041 RemoveCountryCodeFromConversationFilters: migrating =========
+== 20260112092041 RemoveCountryCodeFromConversationFilters: migrated (0.0077s) 
+
+== 20260114192518 AddInternalObservationsToCsatSurveyResponses: migrating =====
+-- add_column(:csat_survey_responses, :csat_review_notes, :text)
+   -> 0.0007s
+== 20260114192518 AddInternalObservationsToCsatSurveyResponses: migrated (0.0008s) 
+
+== 20260114201315 AddObservationsAuditToCsatSurveyResponses: migrating ========
+-- add_column(:csat_survey_responses, :review_notes_updated_at, :datetime)
+   -> 0.0005s
+-- add_reference(:csat_survey_responses, :review_notes_updated_by, {index: true})
+   -> 0.0022s
+== 20260114201315 AddObservationsAuditToCsatSurveyResponses: migrated (0.0028s) 
+
+== 20260120121402 EnableCaptainTasksForExistingAccounts: migrating ============
+== 20260120121402 EnableCaptainTasksForExistingAccounts: migrated (0.0411s) ===
+
+== 20260130061021 AddIndexToReportingEventsForResponseDistribution: migrating =
+-- add_index(:reporting_events, [:account_id, :name, :inbox_id, :created_at], {name: "index_reporting_events_for_response_distribution", algorithm: :concurrently, if_not_exists: true})
+   -> 0.0027s
+== 20260130061021 AddIndexToReportingEventsForResponseDistribution: migrated (0.0027s) 
+
+Loading Installation config

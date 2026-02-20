@@ -1,0 +1,165 @@
+{
+    "name": "Kreativ: Adaptive Test",
+    "nodes": [
+        {
+            "parameters": {
+                "httpMethod": "POST",
+                "path": "adaptive-test",
+                "responseMode": "onReceived",
+                "options": {}
+            },
+            "id": "webhook-test",
+            "name": "Webhook",
+            "type": "n8n-nodes-base.webhook",
+            "typeVersion": 2,
+            "position": [
+                200,
+                300
+            ],
+            "webhookId": "kreativ-adaptive-test"
+        },
+        {
+            "parameters": {
+                "operation": "executeQuery",
+                "query": "={{ \"INSERT INTO debug_log (message) VALUES ('TEST Start: ' + ($node[\\\"Webhook\\\"].json.body.phone || 'no-phone')) RETURNING id\" }}"
+            },
+            "id": "log-test-start",
+            "name": "Log Start",
+            "type": "n8n-nodes-base.postgres",
+            "typeVersion": 2.6,
+            "position": [
+                400,
+                300
+            ],
+            "credentials": {
+                "postgres": {
+                    "id": "lJaeEy4CpHbhgMAp",
+                    "name": "Kreativ PostgreSQL"
+                }
+            }
+        },
+        {
+            "parameters": {
+                "operation": "executeQuery",
+                "query": "={{ \"SELECT name, course_id FROM students WHERE phone = '\" + ($node[\\\"Webhook\\\"].json.body.phone || '') + \"' LIMIT 1\" }}",
+                "options": {
+                    "alwaysOutputData": true
+                }
+            },
+            "id": "get-test-student",
+            "name": "Get Student",
+            "type": "n8n-nodes-base.postgres",
+            "typeVersion": 2.6,
+            "position": [
+                600,
+                300
+            ],
+            "credentials": {
+                "postgres": {
+                    "id": "lJaeEy4CpHbhgMAp",
+                    "name": "Kreativ PostgreSQL"
+                }
+            }
+        },
+        {
+            "parameters": {
+                "method": "POST",
+                "url": "https://openrouter.ai/api/v1/chat/completions",
+                "sendHeaders": true,
+                "headerParameters": {
+                    "parameters": [
+                        {
+                            "name": "Authorization",
+                            "value": "Bearer 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"
+                        }
+                    ]
+                },
+                "sendBody": true,
+                "specifyBody": "json",
+                "jsonBody": "={{ JSON.stringify({\n  model: 'deepseek/deepseek-chat',\n  messages: [\n    { role: 'system', content: 'Responda OK e o nome do aluno: ' + ($node[\\\"Get Student\\\"].json.name || 'N/A') },\n    { role: 'user', content: 'Teste' }\n  ]\n}) }}",
+                "options": {
+                    "timeout": 35000
+                }
+            },
+            "id": "test-api",
+            "name": "AI Test",
+            "type": "n8n-nodes-base.httpRequest",
+            "typeVersion": 4.1,
+            "position": [
+                800,
+                300
+            ]
+        },
+        {
+            "parameters": {
+                "operation": "executeQuery",
+                "query": "={{ \"INSERT INTO debug_log (message) VALUES ('TEST Final: ' + ($node[\\\"AI Test\\\"].json.choices[0].message.content || 'no-res')) RETURNING id\" }}"
+            },
+            "id": "log-test-final",
+            "name": "Log Final",
+            "type": "n8n-nodes-base.postgres",
+            "typeVersion": 2.6,
+            "position": [
+                1000,
+                300
+            ],
+            "credentials": {
+                "postgres": {
+                    "id": "lJaeEy4CpHbhgMAp",
+                    "name": "Kreativ PostgreSQL"
+                }
+            }
+        }
+    ],
+    "connections": {
+        "Webhook": {
+            "main": [
+                [
+                    {
+                        "node": "Log Start",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Log Start": {
+            "main": [
+                [
+                    {
+                        "node": "Get Student",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Get Student": {
+            "main": [
+                [
+                    {
+                        "node": "AI Test",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "AI Test": {
+            "main": [
+                [
+                    {
+                        "node": "Log Final",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        }
+    },
+    "settings": {
+        "executionOrder": "v1",
+        "saveDataSuccessExecution": true,
+        "saveExecutionProgress": true
+    }
+}

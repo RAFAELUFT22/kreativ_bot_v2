@@ -1,5 +1,5 @@
 {
-    "name": "Kreativ: AI Adaptive Router",
+    "name": "Kreativ: AI Adaptive Router V2",
     "nodes": [
         {
             "parameters": {
@@ -13,7 +13,7 @@
             "type": "n8n-nodes-base.webhook",
             "typeVersion": 2,
             "position": [
-                200,
+                100,
                 300
             ],
             "webhookId": "kreativ-ai-tutor-v30"
@@ -27,7 +27,7 @@
             "type": "n8n-nodes-base.code",
             "typeVersion": 2,
             "position": [
-                400,
+                250,
                 300
             ]
         },
@@ -37,7 +37,7 @@
                 "url": "http://kreativ_builderbot:3008/api/query",
                 "sendBody": true,
                 "specifyBody": "json",
-                "jsonBody": "={{ JSON.stringify({ query: \"SELECT name, course_id, current_module, syllabus_config FROM students WHERE phone = $1 LIMIT 1\", values: [$node[\"Transformer\"].json.phone] }) }}",
+                "jsonBody": "={{ JSON.stringify({ query: \"SELECT s.name, s.course_id, s.current_module, c.name as course_name FROM students s JOIN courses c ON s.course_id = c.id WHERE s.phone = $1 LIMIT 1\", values: [$node[\"Transformer\"].json.phone] }) }}",
                 "options": {}
             },
             "id": "get-student-proxy",
@@ -45,21 +45,21 @@
             "type": "n8n-nodes-base.httpRequest",
             "typeVersion": 4.1,
             "position": [
-                600,
+                400,
                 300
             ],
             "continueOnFail": true
         },
         {
             "parameters": {
-                "jsCode": "const rows = $json.rows || [];\nif (rows.length > 0) return [{ json: rows[0] }];\nreturn [{ json: { name: 'Aluno', course_id: 19, current_module: 1 } }];"
+                "jsCode": "const rows = $json.rows || [];\nif (rows.length > 0) return [{ json: rows[0] }];\nreturn [{ json: { name: 'Aluno', course_id: 19, current_module: 1, course_name: 'IA Aplicada' } }];"
             },
             "id": "get-student-v30",
             "name": "Get Student",
             "type": "n8n-nodes-base.code",
             "typeVersion": 2,
             "position": [
-                750,
+                550,
                 300
             ]
         },
@@ -69,7 +69,26 @@
                 "url": "http://kreativ_builderbot:3008/api/query",
                 "sendBody": true,
                 "specifyBody": "json",
-                "jsonBody": "={{ JSON.stringify({ query: \"SELECT title, content_text as syllabus FROM modules m JOIN courses c ON m.course_id = c.slug WHERE c.id = $1 AND m.module_number = $2 LIMIT 1\", values: [$json.course_id, $json.current_module] }) }}",
+                "jsonBody": "={{ JSON.stringify({ query: \"SELECT question, answer FROM training_memory WHERE course_id = $1 OR student_phone = $2 ORDER BY created_at DESC LIMIT 3\", values: [$node[\"Get Student\"].json.course_id, $node[\"Transformer\"].json.phone] }) }}",
+                "options": {}
+            },
+            "id": "fetch-memories",
+            "name": "Buscar Memórias (RLHF)",
+            "type": "n8n-nodes-base.httpRequest",
+            "typeVersion": 4.1,
+            "position": [
+                700,
+                450
+            ],
+            "continueOnFail": true
+        },
+        {
+            "parameters": {
+                "method": "POST",
+                "url": "http://kreativ_builderbot:3008/api/query",
+                "sendBody": true,
+                "specifyBody": "json",
+                "jsonBody": "={{ JSON.stringify({ query: \"SELECT title, content_text as syllabus FROM modules m WHERE m.course_id = $1 AND m.module_number = $2 LIMIT 1\", values: [$node[\"Get Student\"].json.course_id, $node[\"Get Student\"].json.current_module] }) }}",
                 "options": {}
             },
             "id": "get-module-proxy",
@@ -77,53 +96,50 @@
             "type": "n8n-nodes-base.httpRequest",
             "typeVersion": 4.1,
             "position": [
-                900,
-                300
+                700,
+                150
             ],
             "continueOnFail": true
         },
         {
             "parameters": {
-                "jsCode": "const rows = $json.rows || [];\nif (rows.length > 0) return [{ json: rows[0] }];\nreturn [{ json: { title: 'Intro', syllabus: 'Conteúdo padrão.' } }];"
+                "jsCode": "const memories = $('Buscar Memórias (RLHF)').item.json.rows || [];\nconst mod = $('Get Module Proxy').item.json.rows?.[0] || { title: 'Intro', syllabus: 'Geral' };\nconst std = $('Get Student').item.json;\n\nconst formattedMemories = memories.map(m => `P: ${m.question}\\nR: ${m.answer}`).join('\\n---\\n');\n\nreturn [{ \n  json: { \n    syllabus: mod.syllabus, \n    student_name: std.name, \n    course_name: std.course_name,\n    memories: formattedMemories\n  } \n}];"
             },
-            "id": "get-module-v30",
-            "name": "Get Module",
+            "id": "aggregator",
+            "name": "Agregador de Contexto",
             "type": "n8n-nodes-base.code",
             "typeVersion": 2,
             "position": [
-                1050,
+                900,
                 300
             ]
         },
         {
             "parameters": {
                 "method": "POST",
-                "url": "https://openrouter.ai/api/v1/chat/completions",
+                "url": "https://api.deepseek.com/chat/completions",
                 "sendHeaders": true,
                 "headerParameters": {
                     "parameters": [
                         {
                             "name": "Authorization",
-                            "value": "Bearer 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"
+                            "value": "Bearer sk-412552782fbe4009a25a013825e6ab66"
                         }
                     ]
                 },
                 "sendBody": true,
                 "specifyBody": "json",
-                "jsonBody": "={{ JSON.stringify({\n  model: 'deepseek/deepseek-chat',\n  messages: [\n    {\n      role: 'system',\n      content: `ALUNO: ${$node[\"Get Student\"].json.name}\\nEMENTA: ${$node[\"Get Module\"].json.syllabus}\\n\\nDê a aula amigável.` \n    },\n    { role: 'user', content: $node[\"Transformer\"].json.body }\n  ]\n}) }}",
-                "options": {
-                    "timeout": 35000
-                }
+                "jsonBody": "={{ JSON.stringify({\n  model: \"deepseek-chat\",\n  messages: [\n    {\n      role: \"system\",\n      content: `Você é o Tutor IA da Kreativ Educação para o curso: ${$json.course_name}.\\nALUNO: ${$json.student_name}\\n\\nDIRETRIZES ESTRITAS:\\n1. Você SÓ pode responder sobre o curso ${$json.course_name}.\\n2. Se o aluno perguntar sobre outros temas, diga educadamente que seu foco é ${$json.course_name}.\\n3. Use o tom de voz dos exemplos abaixo (RLHF):\\n${$json.memories}\\n\\nEMENTA ATUAL:\\n${$json.syllabus}`\n    },\n    { role: \"user\", content: $node[\"Transformer\"].json.body }\n  ]\n}) }}",
+                "options": {}
             },
-            "id": "openrouter-v30",
-            "name": "AI Generator",
+            "id": "deepseek-ai",
+            "name": "DeepSeek AI",
             "type": "n8n-nodes-base.httpRequest",
-            "typeVersion": 4.1,
+            "typeVersion": 4.2,
             "position": [
-                1200,
+                1100,
                 300
-            ],
-            "continueOnFail": true
+            ]
         },
         {
             "parameters": {
@@ -133,15 +149,14 @@
                 "specifyBody": "json",
                 "jsonBody": "={{ JSON.stringify({ phone: $node[\"Transformer\"].json.phone, message: $json.choices[0].message.content }) }}"
             },
-            "id": "send-wa-v30",
+            "id": "send-wa",
             "name": "Send WhatsApp",
             "type": "n8n-nodes-base.httpRequest",
             "typeVersion": 4.1,
             "position": [
-                1400,
+                1300,
                 300
-            ],
-            "continueOnFail": true
+            ]
         }
     ],
     "connections": {
@@ -182,7 +197,23 @@
             "main": [
                 [
                     {
+                        "node": "Buscar Memórias (RLHF)",
+                        "type": "main",
+                        "index": 0
+                    },
+                    {
                         "node": "Get Module Proxy",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Buscar Memórias (RLHF)": {
+            "main": [
+                [
+                    {
+                        "node": "Agregador de Contexto",
                         "type": "main",
                         "index": 0
                     }
@@ -193,25 +224,25 @@
             "main": [
                 [
                     {
-                        "node": "Get Module",
+                        "node": "Agregador de Contexto",
                         "type": "main",
                         "index": 0
                     }
                 ]
             ]
         },
-        "Get Module": {
+        "Agregador de Contexto": {
             "main": [
                 [
                     {
-                        "node": "AI Generator",
+                        "node": "DeepSeek AI",
                         "type": "main",
                         "index": 0
                     }
                 ]
             ]
         },
-        "AI Generator": {
+        "DeepSeek AI": {
             "main": [
                 [
                     {
@@ -224,8 +255,6 @@
         }
     },
     "settings": {
-        "executionOrder": "v1",
-        "saveDataSuccessExecution": false,
-        "saveExecutionProgress": false
+        "executionOrder": "v1"
     }
 }
