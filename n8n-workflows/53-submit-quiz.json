@@ -1,0 +1,299 @@
+{
+  "name": "Kreativ: Submit Quiz (Typebot + DeepSeek)",
+  "nodes": [
+    {
+      "id": "sq-wh",
+      "name": "Webhook submit-quiz",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [80, 304],
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "submit-quiz",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "webhookId": "kreativ-submit-quiz"
+    },
+    {
+      "id": "sq-parse",
+      "name": "Extrair Parâmetros",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [280, 304],
+      "parameters": {
+        "jsCode": "const body = $json.body || $json;\nconst phone = String(body.phone || '').replace(/\\D/g, '');\nconst module_number = parseInt(body.module_number || 1, 10);\nconst question_index = parseInt(body.question_index || 0, 10);\nconst total_questions = parseInt(body.total_questions || 3, 10);\nconst answer = String(body.answer || '');\nreturn [{ json: { phone, module_number, question_index, total_questions, answer } }];"
+      }
+    },
+    {
+      "id": "sq-pg-context",
+      "name": "Buscar Módulo e Aluno",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [480, 304],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT\n  s.id as student_id, s.name as student_name, s.phone,\n  s.current_module, s.completed_modules, s.scores,\n  s.course_id,\n  m.id as module_id, m.title as module_title,\n  m.quiz_questions, m.passing_score, m.evaluation_rubric,\n  (SELECT count(*)::int FROM modules\n   WHERE course_int_id = s.course_id AND is_published = TRUE) as total_modules\nFROM students s\nJOIN modules m ON m.course_int_id = s.course_id\n  AND m.module_number = {{ $json.module_number }}\n  AND m.is_published = TRUE\nWHERE s.phone = '{{ $json.phone }}'\n   OR (length('{{ $json.phone }}') = 12\n       AND s.phone = concat(left('{{ $json.phone }}', 2), '9', right('{{ $json.phone }}', 10)))\nLIMIT 1",
+        "options": {}
+      },
+      "credentials": {
+        "postgres": {
+          "id": "lJaeEy4CpHbhgMAp",
+          "name": "Kreativ PostgreSQL"
+        }
+      },
+      "continueOnFail": true
+    },
+    {
+      "id": "sq-build-prompt",
+      "name": "Montar Prompt DeepSeek",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [680, 304],
+      "parameters": {
+        "jsCode": "const ctx = $json;\nconst params = $('Extrair Parâmetros').first().json;\n\nif (!ctx.student_id) {\n  return [{ json: { error: 'Aluno ou módulo não encontrado', skip_ai: true } }];\n}\n\nconst quizQuestions = ctx.quiz_questions || [];\nconst questionIdx = params.question_index;\nconst currentQuestion = quizQuestions[questionIdx] || { question: 'Pergunta não encontrada' };\nconst rubric = ctx.evaluation_rubric || currentQuestion.answer_key || 'Avaliar de forma construtiva';\n\nconst systemPrompt = `Você é um avaliador pedagógico da Kreativ Educação. \nAvalie a resposta discursiva do aluno de forma construtiva e encorajadora.\nResponda SOMENTE em JSON com: {\"passed\": true/false, \"score\": 0-100, \"feedback\": \"mensagem curta em português (max 2 frases)\"}\n\nCURSO: ${ctx.module_title || 'Kreativ Educação'}\nCRITÉRIO DE AVALIAÇÃO: ${rubric}\nPONTUAÇÃO MÍNIMA PARA PASSAR: ${ctx.passing_score || 70}%`;\n\nconst userMsg = `PERGUNTA: ${currentQuestion.question}\\nRESPOSTA DO ALUNO: ${params.answer}`;\n\nreturn [{ json: {\n  // Contexto para nós seguintes\n  student_id: ctx.student_id,\n  student_name: ctx.student_name,\n  phone: ctx.phone || params.phone,\n  module_number: params.module_number,\n  question_index: params.question_index,\n  total_questions: params.total_questions,\n  answer: params.answer,\n  passing_score: ctx.passing_score || 70,\n  total_modules: ctx.total_modules || 1,\n  completed_modules: ctx.completed_modules || [],\n  scores: ctx.scores || {},\n  course_id: ctx.course_id,\n  quiz_questions: quizQuestions,\n  skip_ai: false,\n  // Payload DeepSeek\n  dsModel: 'deepseek-chat',\n  dsMessages: [\n    { role: 'system', content: systemPrompt },\n    { role: 'user', content: userMsg }\n  ],\n  dsTemperature: 0.3,\n  dsMaxTokens: 200\n} }];"
+      }
+    },
+    {
+      "id": "sq-if-skip",
+      "name": "Pular IA?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [880, 304],
+      "parameters": {
+        "conditions": {
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ $json.skip_ai }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true"
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "sq-ai",
+      "name": "DeepSeek Avaliar Resposta",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1080, 404],
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.deepseek.com/chat/completions",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Bearer sk-412552782fbe4009a25a013825e6ab66"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ ({ model: $json.dsModel, messages: $json.dsMessages, temperature: $json.dsTemperature, max_tokens: $json.dsMaxTokens }) }}",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "json"
+            }
+          }
+        }
+      },
+      "continueOnFail": true
+    },
+    {
+      "id": "sq-parse-ai",
+      "name": "Processar Resultado IA",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1280, 304],
+      "parameters": {
+        "jsCode": "// Retomar contexto do prompt node\nconst promptCtx = $('Montar Prompt DeepSeek').first().json;\nconst aiRaw = $json;\n\nlet passed = false;\nlet score = 0;\nlet feedback = 'Resposta processada.';\n\n// Tentar parsear JSON da IA\ntry {\n  const content = aiRaw.choices && aiRaw.choices[0]\n    ? aiRaw.choices[0].message.content\n    : '{\"passed\":false,\"score\":0,\"feedback\":\"Erro na avaliação. Por favor, tente novamente.\"}';\n\n  // Extrair JSON mesmo que venha com markdown\n  const jsonMatch = content.match(/\\{[\\s\\S]*\\}/);\n  if (jsonMatch) {\n    const parsed = JSON.parse(jsonMatch[0]);\n    passed = Boolean(parsed.passed);\n    score = Number(parsed.score) || 0;\n    feedback = parsed.feedback || feedback;\n  }\n} catch (e) {\n  feedback = 'Boa tentativa! Continue estudando o conteúdo do módulo.';\n  score = 40;\n  passed = false;\n}\n\nconst questionIdx = promptCtx.question_index;\nconst totalQ = promptCtx.total_questions;\nconst isLastQuestion = (questionIdx + 1) >= totalQ;\n\nreturn [{ json: {\n  // Avaliação\n  passed,\n  score,\n  feedback,\n  is_last_question: isLastQuestion,\n  question_index: questionIdx,\n  total_questions: totalQ,\n  // Contexto do aluno\n  student_id: promptCtx.student_id,\n  student_name: promptCtx.student_name,\n  phone: promptCtx.phone,\n  module_number: promptCtx.module_number,\n  passing_score: promptCtx.passing_score,\n  total_modules: promptCtx.total_modules,\n  completed_modules: promptCtx.completed_modules,\n  scores: promptCtx.scores,\n  course_id: promptCtx.course_id\n} }];"
+      }
+    },
+    {
+      "id": "sq-if-last",
+      "name": "Última Pergunta?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [1480, 304],
+      "parameters": {
+        "conditions": {
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ $json.is_last_question }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true"
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "sq-pg-update",
+      "name": "Atualizar Progresso Módulo",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [1680, 204],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE students SET\n  completed_modules = CASE\n    WHEN NOT ({{ $json.module_number }} = ANY(COALESCE(completed_modules, ARRAY[]::int[])))\n    THEN array_append(COALESCE(completed_modules, ARRAY[]::int[]), {{ $json.module_number }})\n    ELSE completed_modules\n  END,\n  current_module = CASE\n    WHEN {{ $json.module_number + 1 }} <= {{ $json.total_modules }}\n    THEN {{ $json.module_number + 1 }}\n    ELSE current_module\n  END,\n  scores = COALESCE(scores, '{}'::jsonb) || jsonb_build_object('module_{{ $json.module_number }}', {{ $json.score }}),\n  updated_at = NOW()\nWHERE id = '{{ $json.student_id }}'\nRETURNING current_module, completed_modules, course_id",
+        "options": {}
+      },
+      "credentials": {
+        "postgres": {
+          "id": "lJaeEy4CpHbhgMAp",
+          "name": "Kreativ PostgreSQL"
+        }
+      },
+      "continueOnFail": true
+    },
+    {
+      "id": "sq-build-response",
+      "name": "Montar Resposta Final",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1880, 304],
+      "parameters": {
+        "jsCode": "// Recuperar dados de todos os nós anteriores\nconst evalData = $('Processar Resultado IA').first().json;\n\nlet updatedModule = evalData.module_number;\nlet isLastModule = false;\nlet nextModule = null;\n\n// Se foi a última pergunta, buscar dados de atualização\nif (evalData.is_last_question) {\n  try {\n    const updated = $('Atualizar Progresso Módulo').first().json;\n    if (updated && updated.current_module) {\n      updatedModule = updated.current_module;\n    }\n  } catch(e) {}\n\n  // Verificar se é o último módulo do curso\n  const modulesDone = (evalData.completed_modules || []).length + 1; // +1 para o atual\n  isLastModule = modulesDone >= evalData.total_modules;\n  nextModule = isLastModule ? null : updatedModule;\n}\n\nreturn [{ json: {\n  passed: evalData.passed,\n  score: evalData.score,\n  feedback: evalData.feedback,\n  is_last_question: evalData.is_last_question,\n  module_complete: evalData.is_last_question,\n  is_last_module: isLastModule,\n  next_module: nextModule,\n  question_index: evalData.question_index,\n  total_questions: evalData.total_questions,\n  // Dados para fire & forget\n  _phone: evalData.phone,\n  _module_number: evalData.module_number,\n  _score: evalData.score,\n  _is_last_module: isLastModule\n} }];"
+      }
+    },
+    {
+      "id": "sq-if-cert",
+      "name": "Emitir Certificado?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [2080, 204],
+      "parameters": {
+        "conditions": {
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ $json._is_last_module && $json.module_complete }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true"
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "sq-emit-cert",
+      "name": "Trigger Emit Certificate",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [2280, 104],
+      "parameters": {
+        "method": "POST",
+        "url": "http://kreativ_n8n:5678/webhook/emit-certificate",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ phone: $json._phone, moduleNumber: $json._module_number, score: $json._score }) }}",
+        "options": {
+          "timeout": 2000
+        }
+      },
+      "continueOnFail": true
+    },
+    {
+      "id": "sq-resp",
+      "name": "Responder",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [2480, 304],
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ passed: $('Montar Resposta Final').first().json.passed, score: $('Montar Resposta Final').first().json.score, feedback: $('Montar Resposta Final').first().json.feedback, is_last_question: $('Montar Resposta Final').first().json.is_last_question, module_complete: $('Montar Resposta Final').first().json.module_complete, is_last_module: $('Montar Resposta Final').first().json.is_last_module, next_module: $('Montar Resposta Final').first().json.next_module, question_index: $('Montar Resposta Final').first().json.question_index, total_questions: $('Montar Resposta Final').first().json.total_questions }) }}"
+      }
+    },
+    {
+      "id": "sq-resp-mid",
+      "name": "Responder Pergunta Intermediária",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [1680, 404],
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ passed: $json.passed, score: $json.score, feedback: $json.feedback, is_last_question: false, module_complete: false, question_index: $json.question_index, total_questions: $json.total_questions }) }}"
+      }
+    },
+    {
+      "id": "sq-resp-error",
+      "name": "Responder Erro",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [1080, 204],
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ error: $json.error || 'Erro ao processar quiz', passed: false, score: 0, feedback: 'Tente novamente.', is_last_question: false, module_complete: false }) }}"
+      }
+    }
+  ],
+  "connections": {
+    "Webhook submit-quiz": {
+      "main": [[{ "node": "Extrair Parâmetros", "type": "main", "index": 0 }]]
+    },
+    "Extrair Parâmetros": {
+      "main": [[{ "node": "Buscar Módulo e Aluno", "type": "main", "index": 0 }]]
+    },
+    "Buscar Módulo e Aluno": {
+      "main": [[{ "node": "Montar Prompt DeepSeek", "type": "main", "index": 0 }]]
+    },
+    "Montar Prompt DeepSeek": {
+      "main": [[{ "node": "Pular IA?", "type": "main", "index": 0 }]]
+    },
+    "Pular IA?": {
+      "main": [
+        [{ "node": "DeepSeek Avaliar Resposta", "type": "main", "index": 0 }],
+        [{ "node": "Responder Erro", "type": "main", "index": 0 }]
+      ]
+    },
+    "DeepSeek Avaliar Resposta": {
+      "main": [[{ "node": "Processar Resultado IA", "type": "main", "index": 0 }]]
+    },
+    "Processar Resultado IA": {
+      "main": [[{ "node": "Última Pergunta?", "type": "main", "index": 0 }]]
+    },
+    "Última Pergunta?": {
+      "main": [
+        [{ "node": "Atualizar Progresso Módulo", "type": "main", "index": 0 }],
+        [{ "node": "Responder Pergunta Intermediária", "type": "main", "index": 0 }]
+      ]
+    },
+    "Atualizar Progresso Módulo": {
+      "main": [[{ "node": "Montar Resposta Final", "type": "main", "index": 0 }]]
+    },
+    "Montar Resposta Final": {
+      "main": [[{ "node": "Emitir Certificado?", "type": "main", "index": 0 }]]
+    },
+    "Emitir Certificado?": {
+      "main": [
+        [{ "node": "Trigger Emit Certificate", "type": "main", "index": 0 }],
+        [{ "node": "Responder", "type": "main", "index": 0 }]
+      ]
+    },
+    "Trigger Emit Certificate": {
+      "main": [[{ "node": "Responder", "type": "main", "index": 0 }]]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  }
+}

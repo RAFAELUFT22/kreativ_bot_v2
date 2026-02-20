@@ -1,0 +1,86 @@
+{
+  "name": "Kreativ: Get Progress (Typebot)",
+  "nodes": [
+    {
+      "id": "gp-wh",
+      "name": "Webhook get-progress",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [80, 304],
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "get-progress",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "webhookId": "kreativ-get-progress"
+    },
+    {
+      "id": "gp-parse",
+      "name": "Normalizar Telefone",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [280, 304],
+      "parameters": {
+        "jsCode": "const body = $json.body || $json;\nconst raw = String(body.phone || '').replace(/\\D/g, '');\nreturn [{ json: { phone: raw } }];"
+      }
+    },
+    {
+      "id": "gp-pg",
+      "name": "Buscar Progresso",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [480, 304],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT s.name, s.phone, s.current_module, s.completed_modules,\n       s.portal_token, c.name as course_name,\n       (SELECT count(*)::int FROM modules\n        WHERE course_int_id = s.course_id AND is_published = TRUE) as total_modules,\n       to_char(s.created_at, 'DD/MM/YYYY') as enrolled_at\nFROM students s\nLEFT JOIN courses c ON c.id = s.course_id\nWHERE s.phone = '{{ $json.phone }}'\n   OR (length('{{ $json.phone }}') = 12\n       AND s.phone = concat(left('{{ $json.phone }}', 2), '9', right('{{ $json.phone }}', 10)))\nLIMIT 1",
+        "options": {}
+      },
+      "credentials": {
+        "postgres": {
+          "id": "lJaeEy4CpHbhgMAp",
+          "name": "Kreativ PostgreSQL"
+        }
+      },
+      "continueOnFail": true
+    },
+    {
+      "id": "gp-calc",
+      "name": "Calcular Conclusão",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [680, 304],
+      "parameters": {
+        "jsCode": "const row = $json;\n\nif (!row.name) {\n  return [{ json: { error: 'Aluno não encontrado' } }];\n}\n\nconst completed = Array.isArray(row.completed_modules) ? row.completed_modules.length : 0;\nconst total = row.total_modules || 1;\nconst pct = Math.round((completed / total) * 100);\n\nreturn [{ json: {\n  name: row.name,\n  phone: row.phone,\n  course_name: row.course_name || 'Kreativ Educação',\n  current_module: row.current_module || 1,\n  total_modules: total,\n  completed_modules: completed,\n  completion_pct: pct,\n  portal_token: row.portal_token,\n  enrolled_at: row.enrolled_at\n} }];"
+      }
+    },
+    {
+      "id": "gp-resp",
+      "name": "Responder",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [880, 304],
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify($json) }}"
+      }
+    }
+  ],
+  "connections": {
+    "Webhook get-progress": {
+      "main": [[{ "node": "Normalizar Telefone", "type": "main", "index": 0 }]]
+    },
+    "Normalizar Telefone": {
+      "main": [[{ "node": "Buscar Progresso", "type": "main", "index": 0 }]]
+    },
+    "Buscar Progresso": {
+      "main": [[{ "node": "Calcular Conclusão", "type": "main", "index": 0 }]]
+    },
+    "Calcular Conclusão": {
+      "main": [[{ "node": "Responder", "type": "main", "index": 0 }]]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  }
+}

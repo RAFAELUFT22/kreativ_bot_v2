@@ -1,0 +1,86 @@
+{
+  "name": "Kreativ: Catraca — Check Student",
+  "nodes": [
+    {
+      "id": "cs-wh",
+      "name": "Webhook check-student",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [80, 304],
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "check-student",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "webhookId": "kreativ-check-student"
+    },
+    {
+      "id": "cs-normalize",
+      "name": "Normalizar Telefone",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [280, 304],
+      "parameters": {
+        "jsCode": "const body = $json.body || $json;\nconst raw = String(body.phone || '').replace(/\\D/g, '');\nreturn [{ json: { phone: raw } }];"
+      }
+    },
+    {
+      "id": "cs-pg",
+      "name": "Buscar Aluno e Status",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [480, 304],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT s.id, s.name, s.phone, s.course_id, s.current_module,\n       s.completed_modules, s.portal_token,\n       c.name as course_name,\n       COALESCE(h.status, s.attendance_status) as status\nFROM students s\nLEFT JOIN courses c ON c.id = s.course_id\nLEFT JOIN handoff_control h ON h.phone = s.phone\nWHERE s.phone = '{{ $json.phone }}'\n   OR (length('{{ $json.phone }}') = 12\n       AND s.phone = concat(left('{{ $json.phone }}', 2), '9', right('{{ $json.phone }}', 10)))\nLIMIT 1",
+        "options": {}
+      },
+      "credentials": {
+        "postgres": {
+          "id": "lJaeEy4CpHbhgMAp",
+          "name": "Kreativ PostgreSQL"
+        }
+      },
+      "continueOnFail": true
+    },
+    {
+      "id": "cs-map",
+      "name": "Mapear Resposta",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [680, 304],
+      "parameters": {
+        "jsCode": "const rows = $input.all();\n\n// Nenhuma linha: aluno desconhecido\nif (!rows || rows.length === 0 || !rows[0].json.id) {\n  return [{ json: { status: 'unknown' } }];\n}\n\nconst row = rows[0].json;\nconst status = row.status || 'bot';\n\n// Agente humano assumiu: silêncio do bot\nif (status === 'human') {\n  return [{ json: { status: 'human' } }];\n}\n\n// Aluno ativo no bot\nreturn [{ json: {\n  status: 'bot',\n  id: row.id,\n  name: row.name,\n  phone: row.phone,\n  course_id: row.course_id,\n  course_name: row.course_name,\n  current_module: row.current_module,\n  completed_modules: row.completed_modules || [],\n  portal_token: row.portal_token\n} }];"
+      }
+    },
+    {
+      "id": "cs-resp",
+      "name": "Responder",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [880, 304],
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify($json) }}"
+      }
+    }
+  ],
+  "connections": {
+    "Webhook check-student": {
+      "main": [[{ "node": "Normalizar Telefone", "type": "main", "index": 0 }]]
+    },
+    "Normalizar Telefone": {
+      "main": [[{ "node": "Buscar Aluno e Status", "type": "main", "index": 0 }]]
+    },
+    "Buscar Aluno e Status": {
+      "main": [[{ "node": "Mapear Resposta", "type": "main", "index": 0 }]]
+    },
+    "Mapear Resposta": {
+      "main": [[{ "node": "Responder", "type": "main", "index": 0 }]]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  }
+}

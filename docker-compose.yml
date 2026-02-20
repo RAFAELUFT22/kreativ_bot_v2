@@ -243,46 +243,43 @@ services:
         condition: service_healthy
 
   # ===========================================================================
-  # BOT: BUILDERBOT
-  # Apenas rede interna — BuilderBot registra o webhook na Evolution API
-  # N8N acessa via: http://builderbot:3008/api/send
+  # BOT: BUILDERBOT (SUBSTITUÍDO POR TYPEBOT — mantido inativo como fallback)
   # ===========================================================================
 
-  builderbot:
-    build:
-      context: ./apps/builderbot
-      dockerfile: Dockerfile
-    container_name: kreativ_builderbot
-    restart: always
-    environment:
-      PORT: ${BUILDERBOT_PORT:-3008}
-      NODE_ENV: production
-      DB_HOST: kreativ_postgres
-      DB_PORT: 5432
-      DB_USER: ${POSTGRES_USER}
-      DB_PASSWORD: ${POSTGRES_PASSWORD}
-      DB_NAME: ${POSTGRES_DB}
-      EVOLUTION_API_URL: http://kreativ_evolution:8080
-      EVOLUTION_API_KEY: ${EVOLUTION_API_KEY}
-      EVOLUTION_INSTANCE: ${EVOLUTION_INSTANCE:-europs}
-      N8N_WEBHOOK_BASE: http://kreativ_n8n:5678/webhook
-      DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY}
-      DEEPSEEK_BASE_URL: https://api.deepseek.com
-      DEEPSEEK_MODEL: deepseek-chat
-      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
-      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
-      CHATWOOT_URL: ${CHATWOOT_URL:-}
-      CHATWOOT_API_TOKEN: ${CHATWOOT_API_TOKEN:-}
-      CHATWOOT_ACCOUNT_ID: ${CHATWOOT_ACCOUNT_ID:-2}
-      CHATWOOT_INBOX_ID: ${CHATWOOT_INBOX_ID:-1}
-
-    networks:
-      - kreativ_net
-    depends_on:
-      postgres:
-        condition: service_healthy
-      evolution-api:
-        condition: service_started
+# builderbot:
+#   build:
+#     context: ./apps/builderbot
+#     dockerfile: Dockerfile
+#   container_name: kreativ_builderbot
+#   restart: always
+#   environment:
+#     PORT: ${BUILDERBOT_PORT:-3008}
+#     NODE_ENV: production
+#     DB_HOST: kreativ_postgres
+#     DB_PORT: 5432
+#     DB_USER: ${POSTGRES_USER}
+#     DB_PASSWORD: ${POSTGRES_PASSWORD}
+#     DB_NAME: ${POSTGRES_DB}
+#     EVOLUTION_API_URL: http://kreativ_evolution:8080
+#     EVOLUTION_API_KEY: ${EVOLUTION_API_KEY}
+#     EVOLUTION_INSTANCE: ${EVOLUTION_INSTANCE:-europs}
+#     N8N_WEBHOOK_BASE: http://kreativ_n8n:5678/webhook
+#     DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY}
+#     DEEPSEEK_BASE_URL: https://api.deepseek.com
+#     DEEPSEEK_MODEL: deepseek-chat
+#     OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+#     GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+#     CHATWOOT_URL: ${CHATWOOT_URL:-}
+#     CHATWOOT_API_TOKEN: ${CHATWOOT_API_TOKEN:-}
+#     CHATWOOT_ACCOUNT_ID: ${CHATWOOT_ACCOUNT_ID:-2}
+#     CHATWOOT_INBOX_ID: ${CHATWOOT_INBOX_ID:-1}
+#   networks:
+#     - kreativ_net
+#   depends_on:
+#     postgres:
+#       condition: service_healthy
+#     evolution-api:
+#       condition: service_started
 
   # ===========================================================================
   # STORAGE: MINIO
@@ -469,6 +466,97 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+
+  # ---------------------------------------------------------------------------
+  # BOT VISUAL: TYPEBOT — https://typebot.extensionista.site (builder)
+  #                        https://bot.extensionista.site (viewer)
+  # Pré-requisitos manuais:
+  #   docker exec kreativ_postgres psql -U kreativ_user -c "CREATE DATABASE typebot_db;"
+  #   docker exec kreativ_minio mc alias set local http://localhost:9000 kreativ_minio <MINIO_ROOT_PASSWORD>
+  #   docker exec kreativ_minio mc mb local/typebot --ignore-existing
+  #   docker exec kreativ_minio mc anonymous set download local/typebot
+  # DNS a criar: typebot.extensionista.site A 187.77.46.37
+  #              bot.extensionista.site     A 187.77.46.37
+  # ---------------------------------------------------------------------------
+  typebot-builder:
+    image: baptistearno/typebot-builder:latest
+    container_name: kreativ_typebot_builder
+    restart: always
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@kreativ_postgres:5432/typebot_db
+      NEXTAUTH_URL: https://typebot.extensionista.site
+      NEXTAUTH_SECRET: ${TYPEBOT_NEXTAUTH_SECRET}
+      ENCRYPTION_SECRET: ${TYPEBOT_ENCRYPTION_SECRET}
+      ADMIN_EMAIL: ${TYPEBOT_ADMIN_EMAIL}
+      SMTP_HOST: kreativ_postfix
+      SMTP_PORT: 25
+      SMTP_SECURE: "false"
+      SMTP_AUTH_DISABLED: "true"
+      NEXT_PUBLIC_SMTP_FROM: "Kreativ Educação <noreply@extensionista.site>"
+      S3_ACCESS_KEY: ${MINIO_ROOT_USER}
+      S3_SECRET_KEY: ${MINIO_ROOT_PASSWORD}
+      S3_BUCKET: typebot
+      S3_ENDPOINT: http://kreativ_minio:9000
+      S3_PORT: "9000"
+      S3_SSL: "false"
+      S3_REGION: us-east-1
+      NEXT_PUBLIC_VIEWER_URL: https://bot.extensionista.site
+      DISABLE_TELEMETRY: "true"
+    networks:
+      - kreativ_net
+      - coolify
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.kreativ-typebot.rule=Host(`typebot.extensionista.site`)"
+      - "traefik.http.routers.kreativ-typebot.entrypoints=https"
+      - "traefik.http.routers.kreativ-typebot.tls=true"
+      - "traefik.http.routers.kreativ-typebot.tls.certresolver=letsencrypt"
+      - "traefik.http.services.kreativ-typebot.loadbalancer.server.port=3000"
+      - "traefik.http.routers.kreativ-typebot-http.rule=Host(`typebot.extensionista.site`)"
+      - "traefik.http.routers.kreativ-typebot-http.entrypoints=http"
+      - "traefik.http.routers.kreativ-typebot-http.middlewares=kreativ-https-redirect"
+      - "traefik.docker.network=coolify"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  typebot-viewer:
+    image: baptistearno/typebot-viewer:latest
+    container_name: kreativ_typebot_viewer
+    restart: always
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@kreativ_postgres:5432/typebot_db
+      NEXTAUTH_URL: https://typebot.extensionista.site
+      NEXTAUTH_SECRET: ${TYPEBOT_NEXTAUTH_SECRET}
+      ENCRYPTION_SECRET: ${TYPEBOT_ENCRYPTION_SECRET}
+      NEXT_PUBLIC_VIEWER_URL: https://bot.extensionista.site
+      S3_ACCESS_KEY: ${MINIO_ROOT_USER}
+      S3_SECRET_KEY: ${MINIO_ROOT_PASSWORD}
+      S3_BUCKET: typebot
+      S3_ENDPOINT: http://kreativ_minio:9000
+      S3_PORT: "9000"
+      S3_SSL: "false"
+      S3_REGION: us-east-1
+      DISABLE_TELEMETRY: "true"
+    networks:
+      - kreativ_net
+      - coolify
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.kreativ-typebot-viewer.rule=Host(`bot.extensionista.site`)"
+      - "traefik.http.routers.kreativ-typebot-viewer.entrypoints=https"
+      - "traefik.http.routers.kreativ-typebot-viewer.tls=true"
+      - "traefik.http.routers.kreativ-typebot-viewer.tls.certresolver=letsencrypt"
+      - "traefik.http.services.kreativ-typebot-viewer.loadbalancer.server.port=3000"
+      - "traefik.http.routers.kreativ-typebot-viewer-http.rule=Host(`bot.extensionista.site`)"
+      - "traefik.http.routers.kreativ-typebot-viewer-http.entrypoints=http"
+      - "traefik.http.routers.kreativ-typebot-viewer-http.middlewares=kreativ-https-redirect"
+      - "traefik.docker.network=coolify"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      typebot-builder:
+        condition: service_started
 
   # ---------------------------------------------------------------------------
   # SMTP: POSTFIX — email via extensionista.site
