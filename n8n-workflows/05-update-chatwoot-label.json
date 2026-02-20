@@ -20,7 +20,7 @@
     },
     {
       "parameters": {
-        "jsCode": "\nconst phone = $input.item.json.body.phone;\nconst label = $input.item.json.body.label; // ex: 'em-andamento-m1', 'concluido'\nconst moduleNum = $input.item.json.body.module_number;\n\n// Resolve label from module if not explicit\nlet finalLabel = label;\nif (!finalLabel && moduleNum) {\n  if (moduleNum >= 5) finalLabel = 'em-andamento-m5';\n  else finalLabel = `em-andamento-m${moduleNum}`;\n}\n\nreturn [{ json: { phone, label: finalLabel } }];\n"
+        "jsCode": "const body = $input.item.json.body || $input.item.json;\nconst phone = String(body.phone || '').replace(/\\D/g, '');\nconst label = body.label;\nconst moduleNum = parseInt(body.module_number || 0, 10);\n\n// Labels válidas (criadas no Chatwoot):\n// novo-lead, em-andamento, modulo-1..5, aguardando-tutor, com-tutor, concluido, inativo\nlet finalLabel = label;\nif (!finalLabel && moduleNum) {\n  if (moduleNum >= 5) finalLabel = 'modulo-5';\n  else finalLabel = `modulo-${moduleNum}`;\n}\n\nreturn [{ json: { phone, label: finalLabel } }];"
       },
       "id": "lbl-prep",
       "name": "Preparar dados",
@@ -139,7 +139,7 @@
     },
     {
       "parameters": {
-        "jsCode": "\nconst contact_id = $('Extrair ID do Contato').item.json.contact_id;\nconst label = $('Extrair ID do Contato').item.json.label;\nconst body = $input.item.json;\nconst convs = (body.payload || {}).conversations || [];\n\n// Get the latest open conversation\nconst openConv = convs.find(c => c.status === 'open') || convs[0];\nif (!openConv) return [{ json: { success: false, reason: 'No conversation found', contact_id } }];\n\n// Remove progress labels and set new one\nconst progressLabels = ['novo-lead','em-andamento-m1','em-andamento-m2',\n  'em-andamento-m3','em-andamento-m4','em-andamento-m5',\n  'quiz-reprovado','aguardando-tutor','tutor-ativo','concluido','inativo-7d'];\n\nconst currentLabels = (openConv.labels || []).filter(l => !progressLabels.includes(l));\nconst newLabels = [...currentLabels, label];\n\nreturn [{ json: {\n  conversation_id: openConv.id,\n  labels: newLabels,\n  label_url: 'http://kreativ_chatwoot_app:3000/api/v1/accounts/2/conversations/' + openConv.id + '/labels'\n} }];\n"
+        "jsCode": "\nconst contact_id = $('Extrair ID do Contato').item.json.contact_id;\nconst label = $('Extrair ID do Contato').item.json.label;\nconst body = $input.item.json;\nconst convs = (body.payload || {}).conversations || [];\n\n// Get the latest open conversation\nconst openConv = convs.find(c => c.status === 'open') || convs[0];\nif (!openConv) return [{ json: { success: false, reason: 'No conversation found', contact_id } }];\n\n// Remove progress labels and set new one\nconst progressLabels = ['novo-lead','em-andamento','modulo-1','modulo-2',\n  'modulo-3','modulo-4','modulo-5',\n  'aguardando-tutor','com-tutor','concluido','inativo'];\n\nconst currentLabels = (openConv.labels || []).filter(l => !progressLabels.includes(l));\nconst newLabels = [...currentLabels, label];\n\nreturn [{ json: {\n  conversation_id: openConv.id,\n  labels: newLabels,\n  label_url: 'http://kreativ_chatwoot_app:3000/api/v1/accounts/2/conversations/' + openConv.id + '/labels'\n} }];\n"
       },
       "id": "lbl-prep2",
       "name": "Preparar Labels",

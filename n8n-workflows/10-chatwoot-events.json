@@ -180,6 +180,84 @@
     {
       "parameters": {
         "operation": "executeQuery",
+        "query": "SELECT s.name, s.phone, s.current_module, s.completed_modules, s.portal_token,\n       c.name as course_name,\n       (SELECT count(*)::int FROM modules WHERE course_int_id = s.course_id AND is_published = TRUE) as total_modules\nFROM students s\nLEFT JOIN courses c ON c.id = s.course_id\nWHERE s.phone = '{{ $node[\"Extrair Evento\"].json.phone }}'\nLIMIT 1",
+        "options": {}
+      },
+      "id": "cw-get-student",
+      "name": "Buscar Estado do Aluno",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [1740, 200],
+      "credentials": {
+        "postgres": {
+          "id": "lJaeEy4CpHbhgMAp",
+          "name": "Kreativ PostgreSQL"
+        }
+      },
+      "continueOnFail": true
+    },
+
+    {
+      "parameters": {
+        "jsCode": "const phone = $node['Extrair Evento'].json.phone;\nconst rows = $input.all();\n\nlet name = 'Aluno';\nlet currentModule = 1;\nlet totalModules = 1;\nlet completedModules = [];\nlet courseName = 'Kreativ Educação';\nlet portalToken = null;\nlet label = 'em-andamento';\n\nif (rows && rows.length > 0 && rows[0].json.phone) {\n  const s = rows[0].json;\n  name = s.name || 'Aluno';\n  currentModule = s.current_module || 1;\n  totalModules = s.total_modules || 1;\n  completedModules = s.completed_modules || [];\n  courseName = s.course_name || 'Kreativ Educação';\n  portalToken = s.portal_token || null;\n}\n\nconst nCompleted = Array.isArray(completedModules) ? completedModules.length : 0;\nconst courseComplete = nCompleted >= totalModules && totalModules > 0;\n\n// Determinar label do Chatwoot pós-atendimento\nif (courseComplete) {\n  label = 'concluido';\n} else if (currentModule <= 5) {\n  label = `modulo-${currentModule}`;\n} else {\n  label = 'em-andamento';\n}\n\n// Montar mensagem personalizada por caso\nlet message;\nif (!rows || rows.length === 0 || !rows[0].json.phone) {\n  // Caso 0: Aluno não encontrado no DB\n  message = '✅ *Seu atendimento foi encerrado!*\\n\\nPara começar ou retomar o curso, envie *OI*.';\n  label = 'novo-lead';\n} else if (courseComplete) {\n  // Caso 3: Curso completo\n  const portalLink = portalToken\n    ? `\\n\\n📊 Veja seus certificados em:\\nhttps://portal.extensionista.site/aluno/${portalToken}`\n    : '';\n  message = `✅ *Atendimento encerrado!* Bom ver você, ${name}! 😊\\n\\nParabéns — você já concluiu o curso *${courseName}*! 🏆${portalLink}\\n\\nDigite *OI* se precisar de mais alguma coisa.`;\n} else if (nCompleted === 0 && currentModule === 1) {\n  // Caso 1: Aluno não iniciou nenhum módulo\n  message = `✅ *Atendimento encerrado!* Olá, ${name}! 👋\\n\\nPara começar seu aprendizado no curso *${courseName}*, responda:\\n👉 *MODULO* — acessar o Módulo 1\\n👉 *PROGRESSO* — ver seu painel`;\n} else {\n  // Caso 2: Aluno em andamento\n  const portalLink = portalToken\n    ? `\\n\\n📊 Acompanhe seu progresso: https://portal.extensionista.site/aluno/${portalToken}`\n    : '';\n  message = `✅ *Atendimento encerrado!* Olá, ${name}! 👋\\n\\nPode continuar de onde parou no curso *${courseName}*:\\n👉 *MODULO* — continuar no Módulo ${currentModule}\\n👉 *QUIZ* — refazer a avaliação do módulo atual\\n👉 *PROGRESSO* — ver todo seu andamento${portalLink}`;\n}\n\nreturn [{ json: { phone, message, label } }];"
+      },
+      "id": "cw-build-resume",
+      "name": "Montar Mensagem de Retomada",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1960, 200]
+    },
+
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://kreativ_evolution:8080/message/sendText/europs",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "EXr5OuEE2sBMbRo94LtWQfofvEF1gHUM"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ number: $json.phone, text: $json.message }) }}",
+        "options": {
+          "timeout": 10000
+        }
+      },
+      "id": "cw-send-wa",
+      "name": "Enviar WhatsApp Retomada",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [2180, 200],
+      "continueOnFail": true
+    },
+
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://kreativ_n8n:5678/webhook/update-chatwoot-label",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ phone: $('Montar Mensagem de Retomada').first().json.phone, label: $('Montar Mensagem de Retomada').first().json.label }) }}",
+        "options": {
+          "timeout": 3000
+        }
+      },
+      "id": "cw-update-label",
+      "name": "Atualizar Label Pós-Atendimento",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [2400, 200],
+      "continueOnFail": true
+    },
+
+    {
+      "parameters": {
+        "operation": "executeQuery",
         "query": "BEGIN;\nUPDATE students\nSET attendance_status = 'human', updated_at = NOW()\nWHERE phone = '{{ $json.phone }}';\n\nINSERT INTO handoff_control (phone, status, last_handoff)\nVALUES ('{{ $json.phone }}', 'human', NOW())\nON CONFLICT (phone) DO UPDATE\n  SET status = 'human', last_handoff = NOW();\nCOMMIT;",
         "options": {}
       },
@@ -254,7 +332,7 @@
     {
       "parameters": {
         "operation": "executeQuery",
-        "query": "INSERT INTO training_memory (question, answer, student_phone)\nVALUES ('{{ $json.question.replace(/'/g, \"''\") }}', '{{ $json.answer.replace(/'/g, \"''\") }}', '{{ $json.phone }}')\nON CONFLICT DO NOTHING;",
+        "query": "INSERT INTO training_memory (question, answer, student_phone, conv_id)\nVALUES ('{{ $json.question.replace(/'/g, \"''\") }}', '{{ $json.answer.replace(/'/g, \"''\") }}', '{{ $json.phone }}', {{ $json.conv_id }})\nON CONFLICT (conv_id) DO NOTHING;",
         "options": {}
       },
       "id": "save-memory",
@@ -293,6 +371,18 @@
     },
     "Retomar Bot no DB": {
       "main": [[{ "node": "Redis: Set Bot", "type": "main", "index": 0 }]]
+    },
+    "Redis: Set Bot": {
+      "main": [[{ "node": "Buscar Estado do Aluno", "type": "main", "index": 0 }]]
+    },
+    "Buscar Estado do Aluno": {
+      "main": [[{ "node": "Montar Mensagem de Retomada", "type": "main", "index": 0 }]]
+    },
+    "Montar Mensagem de Retomada": {
+      "main": [[{ "node": "Enviar WhatsApp Retomada", "type": "main", "index": 0 }]]
+    },
+    "Enviar WhatsApp Retomada": {
+      "main": [[{ "node": "Atualizar Label Pós-Atendimento", "type": "main", "index": 0 }]]
     },
     "Handoff no DB": {
       "main": [[{ "node": "Redis: Set Human", "type": "main", "index": 0 }]]

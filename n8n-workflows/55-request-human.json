@@ -33,7 +33,7 @@
       "position": [480, 304],
       "parameters": {
         "operation": "executeQuery",
-        "query": "-- Atualizar handoff_control\nINSERT INTO handoff_control (phone, status, updated_at)\nVALUES ('{{ $json.phone }}', 'human', NOW())\nON CONFLICT (phone) DO UPDATE SET status = 'human', updated_at = NOW();\n\n-- Atualizar students\nUPDATE students SET attendance_status = 'human', updated_at = NOW()\nWHERE phone = '{{ $json.phone }}'\n   OR (length('{{ $json.phone }}') = 12\n       AND phone = concat(left('{{ $json.phone }}', 2), '9', right('{{ $json.phone }}', 10)));\n\n-- Criar sessão de suporte\nINSERT INTO support_sessions (student_id, reason)\nSELECT id, '{{ ($json.reason) | replace(\"'\", \"''\") }}'\nFROM students\nWHERE phone = '{{ $json.phone }}'\n   OR (length('{{ $json.phone }}') = 12\n       AND phone = concat(left('{{ $json.phone }}', 2), '9', right('{{ $json.phone }}', 10)))\nLIMIT 1",
+        "query": "-- Atualizar handoff_control\nINSERT INTO handoff_control (phone, status, last_handoff)\nVALUES ('{{ $json.phone }}', 'human', NOW())\nON CONFLICT (phone) DO UPDATE SET status = 'human', last_handoff = NOW();\n\n-- Atualizar students\nUPDATE students SET attendance_status = 'human', updated_at = NOW()\nWHERE phone = '{{ $json.phone }}'\n   OR (length('{{ $json.phone }}') = 12\n       AND phone = concat(left('{{ $json.phone }}', 2), '9', right('{{ $json.phone }}', 10)));\n\n-- Criar sessão de suporte\nINSERT INTO support_sessions (student_id, reason)\nSELECT id, '{{ ($json.reason) | replace(\"'\", \"''\") }}'\nFROM students\nWHERE phone = '{{ $json.phone }}'\n   OR (length('{{ $json.phone }}') = 12\n       AND phone = concat(left('{{ $json.phone }}', 2), '9', right('{{ $json.phone }}', 10)))\nLIMIT 1",
         "options": {}
       },
       "credentials": {
@@ -248,6 +248,24 @@
         "respondWith": "json",
         "responseBody": "={{ JSON.stringify({ success: true, message: 'Tutor solicitado' }) }}"
       }
+    },
+    {
+      "id": "rh-set-label",
+      "name": "Label: aguardando-tutor",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [2680, 304],
+      "parameters": {
+        "method": "POST",
+        "url": "http://kreativ_n8n:5678/webhook/update-chatwoot-label",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ phone: $('Normalizar Telefone').first().json.phone, label: 'aguardando-tutor' }) }}",
+        "options": {
+          "timeout": 3000
+        }
+      },
+      "continueOnFail": true
     }
   ],
   "connections": {
@@ -292,6 +310,9 @@
     },
     "Enviar Mensagem de Suporte": {
       "main": [[{ "node": "Responder Sucesso", "type": "main", "index": 0 }]]
+    },
+    "Responder Sucesso": {
+      "main": [[{ "node": "Label: aguardando-tutor", "type": "main", "index": 0 }]]
     }
   },
   "settings": {
