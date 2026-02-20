@@ -122,10 +122,13 @@ services:
       DATABASE_SAVE_DATA_LABELS: "true"
 
       # --- Redis ---
+      # NOTA: usar kreativ_redis (container_name), NÃO "redis" (service name)
+      # Motivo: evolution-api está nas redes kreativ_net E coolify.
+      # O hostname "redis" pode resolver para coolify-redis (sem senha) na rede coolify.
       REDIS_ENABLED: "true"
-      REDIS_URI: redis://redis:6379/1
+      REDIS_URI: redis://:${REDIS_PASSWORD}@kreativ_redis:6379/1
       CACHE_REDIS_ENABLED: "false"
-      CACHE_REDIS_URI: redis://redis:6379/2
+      CACHE_REDIS_URI: redis://:${REDIS_PASSWORD}@kreativ_redis:6379/2
       CACHE_REDIS_PREFIX_KEY: evol
       CACHE_REDIS_SAVE_INSTANCES: "false"
 
@@ -419,7 +422,7 @@ services:
       FRONTEND_URL: https://suporte.extensionista.site
       DEFAULT_LOCALE: pt_BR
       FORCE_SSL: "false"
-      REDIS_URL: redis://kreativ_redis:6379/3
+      REDIS_URL: redis://:${REDIS_PASSWORD}@kreativ_redis:6379/3
       POSTGRES_HOST: kreativ_postgres
       POSTGRES_RECONNECT: "true"
       POSTGRES_PORT: 5432
