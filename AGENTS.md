@@ -1,7 +1,7 @@
 # AGENTS.md — Guia para Agentes de IA Continuarem o Desenvolvimento
 
 > Este arquivo serve para que novos agentes entendam o estado atual e o roadmap.
-> **Última atualização**: 20/02/2026 — Claude (Session End)
+> **Última atualização**: 21/02/2026 — Claude (Session End)
 
 ---
 
@@ -19,30 +19,38 @@
 ## 2. Arquitetura Atual
 
 ```
-WhatsApp ─► Evolution API ─► N8N Router (Redis Cache/Rate Limit)
-                                    │
-                    ┌───────────────┴────────────────┐
-                    ▼                                ▼
-              BuilderBot                       AI Router V3
-              (relay FSM)               (RAG + Sliding Window)
-                    │                        │    │    │
-                    │                  Redis PG  RAG  Few-shot
-                    └───────────────────────►│
-                                             │
-                                      DeepSeek API
-                                             │
-                                      Evolution API
-                                      (Resposta Direta)
+WhatsApp ─► Evolution API (TYPEBOT_ENABLED=true)
+                    │
+                    ▼
+              Typebot v6 (bot visual)
+                    │  blocos "Webhook" (capital W) = server-side HTTP
+                    ▼
+           N8N: kreativ-unified-api
+           POST /webhook/kreativ-unified-api
+                    │
+         ┌──────────┼──────────┐
+         ▼          ▼          ▼
+    PostgreSQL    Redis    DeepSeek API
+    (kreativ_edu)         (avaliação IA)
+         │
+         ▼
+   Portal LMS (Next.js) + Chatwoot (suporte humano)
 ```
+
+> ATENÇÃO: BuilderBot está presente no docker-compose mas NÃO está no fluxo ativo.
+> A Evolution API roteia DIRETAMENTE para o Typebot (não passa mais pelo N8N Router).
 
 ### Serviços Ativos
 
 | Serviço | Host Docker | Status |
 |---|---|---|
-| PostgreSQL | `kreativ_postgres` | Ativo (Porta 5432) |
-| Redis | `kreativ_redis` | Ativo (Auth Enforced) |
-| Gateway | `kreativ_evolution` | Ativo (Porta 8080) |
-| Orquestrador | `kreativ_n8n` | Ativo (Porta 5678) |
+| PostgreSQL | `kreativ_postgres` | Ativo (Porta 5432) — SEMPRE usar este hostname |
+| Redis | `kreativ_redis` | Ativo |
+| Evolution API | `kreativ_evolution` | Ativo (Porta 8081) — roteia para Typebot |
+| Typebot Builder | `kreativ_typebot_builder` | Ativo — editor visual |
+| Typebot Viewer | `kreativ_typebot_viewer` | Ativo — runtime do bot |
+| N8N | `kreativ_n8n` | Ativo (Porta 5678) — endpoint unificado |
+| Chatwoot | `kreativ_chatwoot` | Ativo — suporte humano |
 
 ---
 

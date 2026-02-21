@@ -2,7 +2,7 @@
 
 **Telefone:** `556399374165`  
 **Estado atual no DB:** `attendance_status=human`, `current_module=4`, modules 1-3 concluídos (100%)  
-**Data:** 2026-02-19
+**Data:** 2026-02-21 (atualizado — arquitetura Typebot v6)
 
 ---
 
@@ -51,24 +51,18 @@ http://localhost:5678/webhook/whatsapp
 ---
 
 ### 2. 📚 Module Flow (Carregar Conteúdo)
-**Trigger:** Enviar "modulo" ou "continuar" no WhatsApp  
-**Pré-condição:** `attendance_status=bot`, `current_module >= 1`  
-**Esperado:** Bot envia conteúdo do módulo atual  
-**Teste via webhook:**
+**Trigger:** Usuário seleciona opção "Estudar módulo" no menu do Typebot
+**Pré-condição:** `attendance_status=bot`, `current_module >= 1`
+**Esperado:** Typebot chama N8N `get_module`, envia conteúdo via Evolution API
+**Teste direto N8N:**
 ```bash
-docker exec kreativ_n8n wget -qO- --post-data='{
-  "event": "messages.upsert",
-  "data": {
-    "key": {"remoteJid": "556399374165@s.whatsapp.net", "fromMe": false},
-    "pushName": "Rafael Luciano",
-    "message": {"conversation": "modulo"}
-  }
-}' --header="Content-Type: application/json" \
-http://localhost:5678/webhook/whatsapp
+curl -s -X POST https://n8n.extensionista.site/webhook/kreativ-unified-api \
+  -H "Content-Type: application/json" \
+  -d '{"action": "get_module", "phone": "556399374165"}'
 ```
 **Verificar:**
-- [ ] N8N chama `get-student-module` e retorna conteúdo correto
-- [ ] BuilderBot envia conteúdo no WhatsApp
+- [ ] N8N retorna conteúdo do módulo correto
+- [ ] Resposta inclui `title`, `content`, `moduleNumber`
 - [ ] Conteúdo corresponde ao `current_module` do aluno
 
 ---
@@ -112,7 +106,7 @@ http://localhost:5678/webhook/whatsapp
 **Verificar:**
 - [ ] `attendance_status` muda para `human`
 - [ ] Conversa criada no Chatwoot (Inbox 2)
-- [ ] Mensagem do BuilderBot confirmando transferência
+- [ ] Typebot envia mensagem confirmando transferência via Evolution API
 - [ ] Novas mensagens do aluno são silenciadas (rota `paused`)
 
 ---

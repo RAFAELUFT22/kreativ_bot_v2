@@ -1,7 +1,6 @@
 # ROADMAP — Kreativ Educação: Próximos Passos de Implementação
 
-> Baseado em: `arquitetura_builderbot_definitiva.docx`
-> Atualizado em: 19/02/2026 (Pós-Implantação v2.0)
+> Atualizado em: 21/02/2026 (v0.3 — Typebot ativo)
 
 ---
 
@@ -12,15 +11,20 @@
 - Subdomínios com SSL via Traefik + Let's Encrypt
 - Containers: PostgreSQL + pgvector, Redis, MinIO, Evolution API
 
-### Fase 2 — BuilderBot + Evolution ✅
-- BuilderBot rodando com `@builderbot/provider-evolution-api`
-- Recebe e responde mensagens WhatsApp
-- Flows: welcome, module, quiz, human-support, ai-tutor
+### Fase 2 — BuilderBot + Evolution ✅ (legado)
+- BuilderBot foi o primeiro framework do bot (substituído pelo Typebot na Fase 2b)
 
-### Fase 3 — Primeiro Flow de Boas-Vindas ✅
-- Onboarding: menu principal
-- Opções: 1=iniciar trilha, 2=continuar, 3=tutor, 4=certificado
-- AI fallback via DeepSeek para mensagens livres
+### Fase 2b — Migração para Typebot v6 ✅
+- **Arquitetura ativa**: WhatsApp → Evolution API → **Typebot v6** → N8N → PostgreSQL
+- Bot "Kreativ Educacao" (ID: `vnp6x9bqwrx54b2pct5dhqlb`) em produção
+- N8N Unified API: `POST /webhook/kreativ-unified-api` (5 ações: check_student, get_module, submit_quiz, get_progress, request_human)
+- Lição crítica: blocos `"Webhook"` (capital W) = server-side; `"webhook"` lowercase = client-side (Evolution ignora)
+- Deploy via DB injection: `scripts/build_typebot.py`
+
+### Fase 3 — Flow de Boas-Vindas / Menu Principal ✅
+- Verificação de cadastro ao entrar
+- Menu: Estudar módulo, Fazer quiz, Meu progresso, Falar com tutor
+- Entrega de conteúdo do módulo atual via N8N
 
 ### Módulos e Quiz (parte da Fase 5) ✅
 - Conteúdo dos módulos sendo entregue via WhatsApp
@@ -67,35 +71,54 @@
 
 ---
 
-## Fases Pendentes (Futuro)
+## Fases Pendentes
 
 ---
 
-### FASE 4 — RAGFlow + Material Didático
-**O que faz**: Indexa PDFs e slides do material didático para que o bot possa
-responder perguntas específicas com base no conteúdo real do curso.
+### FASE 3A — Corrigir Botões WhatsApp (URGENTE)
+**Problema**: Typebot `Choice Input` blocks aparecem como texto com emojis no WhatsApp, não como botões interativos.
 
-**Prioridade**: ALTA — sem isso, o AI Tutor responde com conhecimento genérico.
+**Opção rápida** (Evolution Baileys):
+- Substituir Choice Input por texto com sintaxe `[buttons]` que a Evolution converte em botões nativos
+- Máximo 3 botões por mensagem. Para menus maiores usar `[list]`
+
+**Opção definitiva** (Cloud API Meta):
+- Migrar instância Evolution para `WHATSAPP-BUSINESS` (Cloud API)
+- Suporte oficial a botões, listas, templates — sem limitações Baileys
+- Requer aprovação Meta Business Account
+
+---
+
+### FASE 3B — Avaliação Quiz com DeepSeek
+**Problema**: `submit_quiz` no N8N retorna apenas `{"success": true}`, sem avaliação IA.
+
+**Implementar**:
+1. Buscar pergunta e rubrica do módulo atual no PostgreSQL
+2. Chamar DeepSeek com prompt de avaliação pedagógica
+3. Retornar `score`, `feedback`, `passed` (>=70%)
+4. Se passed: emitir certificado via `12-emit-certificate.json`
+
+---
+
+### FASE 4 — RAG (Material Didático)
+**Infra pronta**: `document_chunks` tabela existe, índice ivfflat criado, AI Router V3 tem nó RAG.
+**Pendente**: Popular com embeddings reais.
 
 **Passos**:
-1. Adicionar RAGFlow ao `docker-compose.yml` (Já temos RAM suficiente agora).
-2. Configurar DNS: `rag.extensionista.site`.
-3. Integrar `ai-tutor.flow.ts` para chamar a API de busca semântica.
+1. Gerar embeddings do conteúdo dos módulos (OpenAI text-embedding-3-small ou DeepSeek)
+2. Inserir em `document_chunks` com `metadata->>'course_int_id'` e `metadata->>'module_number'`
+3. Workflow `22-rag-ingestion.json` já preparado
 
 ---
 
-### FASE 5 — Flows Completos de Módulos com IA (Conteúdo)
-**O que faz**: Criar conteúdo específico para cada módulo.
-Atualmente temos a estrutura, falta popular o banco de dados com o conteúdo real do curso.
+### FASE 5 — Cloud API Meta (Migração Evolution)
+**Por que**: Baileys pode ser bloqueado pela Meta; Cloud API tem suporte oficial a botões interativos.
 
 **Passos**:
-1. Popular tabela `modules` no PostgreSQL com conteúdo real.
-2. Criar flows específicos se necessário (atualmente usamos flow genérico dinâmico).
-
----
-
-### FASE 6 — Wellms ou LMS Customizado (Opcional)
-**Status**: Baixa prioridade. O sistema atual (N8N + SQL) está atendendo bem.
+1. Criar Meta App com permissões WhatsApp Business
+2. Obter System User Token permanente (não expira como o JWT)
+3. Configurar instância `europs` com `integration: WHATSAPP-BUSINESS`
+4. Guia completo: `GUIA_META_WEBHOOK.md`
 
 ---
 
@@ -103,6 +126,8 @@ Atualmente temos a estrutura, falta popular o banco de dados com o conteúdo rea
 
 | Prioridade | Fase | Status |
 |---|---|---|
-| 🟢 CONCLUÍDO | 1, 2, 3, 7, 8, 9, 10, 11, 12 | ✅ Deploy realizado |
-| 🟠 ALTA | 4 (RAGFlow) | Pendente |
-| 🟡 MÉDIA | 5 (Conteúdo) | Pendente |
+| 🟢 CONCLUÍDO | 1, 2, 2b, 3, 7, 8, 9, 10, 11, 12 | ✅ |
+| 🔴 URGENTE | 3A (Botões WhatsApp) | Pendente |
+| 🟠 ALTA | 3B (Quiz DeepSeek) | Pendente |
+| 🟠 ALTA | 4 (RAG Embeddings) | Pendente |
+| 🟡 MÉDIA | 5 (Cloud API Meta) | Pendente |
