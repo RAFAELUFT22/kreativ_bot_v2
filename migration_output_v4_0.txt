@@ -1,9 +1,0 @@
- Container kreativ_redis Running 
- Container kreativ_postgres Running 
- Container kreativ_redis Waiting 
- Container kreativ_postgres Waiting 
- Container kreativ_redis Healthy 
- Container kreativ_postgres Healthy 
- Container ideias_app-chatwoot-app-run-3e3dc4594669 Creating 
- Container ideias_app-chatwoot-app-run-3e3dc4594669 Created 
-Loading Installation config
