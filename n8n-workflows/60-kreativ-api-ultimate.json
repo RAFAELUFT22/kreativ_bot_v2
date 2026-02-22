@@ -1,5 +1,5 @@
 {
-    "updatedAt": "2026-02-22T03:34:41.431Z",
+    "updatedAt": "2026-02-22T03:49:16.156Z",
     "createdAt": "2026-02-21T21:18:29.584Z",
     "id": "SoB5evP9aOmj6hLA",
     "name": "Kreativ: Unified API Router (v1.1 - ULTIMATE)",
@@ -26,7 +26,7 @@
         },
         {
             "parameters": {
-                "jsCode": "const body = $json.body || $json;\nconst phone = String(body.phone || '').replace(/\\D/g, '');\nconst action = body.action || 'check_student';\n\nreturn [{ json: { ...body, phone, action } }];"
+                "jsCode": "// Validacao obrigatoria de campos de entrada\nconst rawBody = $json.body || $json;\nconst phone = String(rawBody.phone || rawBody.phone_number || '').replace(/\\D/g, '');\nconst action = rawBody.action;\n\nif (!phone) {\n  throw new Error('Payload invalido: campo \"phone\" e obrigatorio');\n}\nif (!action) {\n  throw new Error('Payload invalido: campo \"action\" e obrigatorio');\n}\n\n// Normalizar body completo preservando campos extras\nconst body = { ...rawBody, phone, action };\n\nreturn [{ json: body }];\n"
             },
             "name": "Normalizar Input",
             "type": "n8n-nodes-base.code",
@@ -35,7 +35,8 @@
                 224,
                 0
             ],
-            "id": "622603ab-0173-414b-a565-cd5bcb71ba3c"
+            "id": "622603ab-0173-414b-a565-cd5bcb71ba3c",
+            "onError": "continueErrorOutput"
         },
         {
             "parameters": {
@@ -338,7 +339,8 @@
                     "name": "Kreativ PostgreSQL"
                 }
             },
-            "continueOnFail": true
+            "continueOnFail": true,
+            "onError": "continueRegularOutput"
         },
         {
             "parameters": {
@@ -372,7 +374,8 @@
                     "id": "lJaeEy4CpHbhgMAp",
                     "name": "Kreativ PostgreSQL"
                 }
-            }
+            },
+            "onError": "continueRegularOutput"
         },
         {
             "parameters": {
@@ -433,7 +436,8 @@
                     "id": "lJaeEy4CpHbhgMAp",
                     "name": "Kreativ PostgreSQL"
                 }
-            }
+            },
+            "onError": "continueRegularOutput"
         },
         {
             "parameters": {
@@ -512,7 +516,8 @@
                     "id": "lJaeEy4CpHbhgMAp",
                     "name": "Kreativ PostgreSQL"
                 }
-            }
+            },
+            "onError": "continueRegularOutput"
         },
         {
             "parameters": {
@@ -639,7 +644,8 @@
                     "name": "Kreativ PostgreSQL"
                 }
             },
-            "continueOnFail": true
+            "continueOnFail": true,
+            "onError": "continueRegularOutput"
         },
         {
             "parameters": {
@@ -719,7 +725,8 @@
                     "name": "Kreativ PostgreSQL"
                 }
             },
-            "continueOnFail": true
+            "continueOnFail": true,
+            "onError": "continueRegularOutput"
         },
         {
             "parameters": {
@@ -741,7 +748,8 @@
                     "name": "Kreativ PostgreSQL"
                 }
             },
-            "continueOnFail": true
+            "continueOnFail": true,
+            "onError": "continueRegularOutput"
         },
         {
             "parameters": {
@@ -1039,7 +1047,8 @@
                     "id": "lJaeEy4CpHbhgMAp",
                     "name": "Kreativ PostgreSQL"
                 }
-            }
+            },
+            "onError": "continueRegularOutput"
         },
         {
             "parameters": {
@@ -1060,7 +1069,8 @@
                     "id": "lJaeEy4CpHbhgMAp",
                     "name": "Kreativ PostgreSQL"
                 }
-            }
+            },
+            "onError": "continueRegularOutput"
         },
         {
             "parameters": {
@@ -1081,7 +1091,8 @@
                     "id": "lJaeEy4CpHbhgMAp",
                     "name": "Kreativ PostgreSQL"
                 }
-            }
+            },
+            "onError": "continueRegularOutput"
         },
         {
             "parameters": {
@@ -1101,6 +1112,24 @@
                 "postgres": {
                     "id": "lJaeEy4CpHbhgMAp",
                     "name": "Kreativ PostgreSQL"
+                }
+            },
+            "onError": "continueRegularOutput"
+        },
+        {
+            "id": "d9345af8-c729-4c1f-8418-34c33e305469",
+            "name": "Responder Erro Validacao",
+            "type": "n8n-nodes-base.respondToWebhook",
+            "typeVersion": 1.1,
+            "position": [
+                224,
+                160
+            ],
+            "parameters": {
+                "respondWith": "json",
+                "responseBody": "={{ JSON.stringify({ success: false, error: $json.message || 'Payload invalido: phone e action sao obrigatorios' }) }}",
+                "options": {
+                    "responseCode": 400
                 }
             }
         }
@@ -1122,6 +1151,13 @@
                 [
                     {
                         "node": "Roteador de A\u00e7\u00f5es",
+                        "type": "main",
+                        "index": 0
+                    }
+                ],
+                [
+                    {
+                        "node": "Responder Erro Validacao",
                         "type": "main",
                         "index": 0
                     }
@@ -1646,9 +1682,9 @@
     "staticData": null,
     "meta": null,
     "pinData": {},
-    "versionId": "93e59d4d-0222-47b2-bf95-8b48cd959547",
-    "activeVersionId": "93e59d4d-0222-47b2-bf95-8b48cd959547",
-    "versionCounter": 26,
+    "versionId": "6aaf4455-8558-46c9-87f2-5e19afcd2d7d",
+    "activeVersionId": "6aaf4455-8558-46c9-87f2-5e19afcd2d7d",
+    "versionCounter": 32,
     "triggerCount": 1,
     "shared": [
         {
@@ -1671,9 +1707,9 @@
     ],
     "tags": [],
     "activeVersion": {
-        "updatedAt": "2026-02-22T02:44:45.205Z",
-        "createdAt": "2026-02-22T02:44:45.205Z",
-        "versionId": "93e59d4d-0222-47b2-bf95-8b48cd959547",
+        "updatedAt": "2026-02-22T03:49:16.162Z",
+        "createdAt": "2026-02-22T03:49:16.162Z",
+        "versionId": "6aaf4455-8558-46c9-87f2-5e19afcd2d7d",
         "workflowId": "SoB5evP9aOmj6hLA",
         "nodes": [
             {
@@ -1695,7 +1731,7 @@
             },
             {
                 "parameters": {
-                    "jsCode": "const body = $json.body || $json;\nconst phone = String(body.phone || '').replace(/\\D/g, '');\nconst action = body.action || 'check_student';\n\nreturn [{ json: { ...body, phone, action } }];"
+                    "jsCode": "// Validacao obrigatoria de campos de entrada\nconst rawBody = $json.body || $json;\nconst phone = String(rawBody.phone || rawBody.phone_number || '').replace(/\\D/g, '');\nconst action = rawBody.action;\n\nif (!phone) {\n  throw new Error('Payload invalido: campo \"phone\" e obrigatorio');\n}\nif (!action) {\n  throw new Error('Payload invalido: campo \"action\" e obrigatorio');\n}\n\n// Normalizar body completo preservando campos extras\nconst body = { ...rawBody, phone, action };\n\nreturn [{ json: body }];\n"
                 },
                 "name": "Normalizar Input",
                 "type": "n8n-nodes-base.code",
@@ -1704,7 +1740,8 @@
                     224,
                     0
                 ],
-                "id": "622603ab-0173-414b-a565-cd5bcb71ba3c"
+                "id": "622603ab-0173-414b-a565-cd5bcb71ba3c",
+                "onError": "continueErrorOutput"
             },
             {
                 "parameters": {
@@ -2007,7 +2044,8 @@
                         "name": "Kreativ PostgreSQL"
                     }
                 },
-                "continueOnFail": true
+                "continueOnFail": true,
+                "onError": "continueRegularOutput"
             },
             {
                 "parameters": {
@@ -2041,7 +2079,8 @@
                         "id": "lJaeEy4CpHbhgMAp",
                         "name": "Kreativ PostgreSQL"
                     }
-                }
+                },
+                "onError": "continueRegularOutput"
             },
             {
                 "parameters": {
@@ -2102,7 +2141,8 @@
                         "id": "lJaeEy4CpHbhgMAp",
                         "name": "Kreativ PostgreSQL"
                     }
-                }
+                },
+                "onError": "continueRegularOutput"
             },
             {
                 "parameters": {
@@ -2181,7 +2221,8 @@
                         "id": "lJaeEy4CpHbhgMAp",
                         "name": "Kreativ PostgreSQL"
                     }
-                }
+                },
+                "onError": "continueRegularOutput"
             },
             {
                 "parameters": {
@@ -2308,7 +2349,8 @@
                         "name": "Kreativ PostgreSQL"
                     }
                 },
-                "continueOnFail": true
+                "continueOnFail": true,
+                "onError": "continueRegularOutput"
             },
             {
                 "parameters": {
@@ -2388,7 +2430,8 @@
                         "name": "Kreativ PostgreSQL"
                     }
                 },
-                "continueOnFail": true
+                "continueOnFail": true,
+                "onError": "continueRegularOutput"
             },
             {
                 "parameters": {
@@ -2410,7 +2453,8 @@
                         "name": "Kreativ PostgreSQL"
                     }
                 },
-                "continueOnFail": true
+                "continueOnFail": true,
+                "onError": "continueRegularOutput"
             },
             {
                 "parameters": {
@@ -2708,7 +2752,8 @@
                         "id": "lJaeEy4CpHbhgMAp",
                         "name": "Kreativ PostgreSQL"
                     }
-                }
+                },
+                "onError": "continueRegularOutput"
             },
             {
                 "parameters": {
@@ -2729,7 +2774,8 @@
                         "id": "lJaeEy4CpHbhgMAp",
                         "name": "Kreativ PostgreSQL"
                     }
-                }
+                },
+                "onError": "continueRegularOutput"
             },
             {
                 "parameters": {
@@ -2750,7 +2796,8 @@
                         "id": "lJaeEy4CpHbhgMAp",
                         "name": "Kreativ PostgreSQL"
                     }
-                }
+                },
+                "onError": "continueRegularOutput"
             },
             {
                 "parameters": {
@@ -2770,6 +2817,24 @@
                     "postgres": {
                         "id": "lJaeEy4CpHbhgMAp",
                         "name": "Kreativ PostgreSQL"
+                    }
+                },
+                "onError": "continueRegularOutput"
+            },
+            {
+                "id": "d9345af8-c729-4c1f-8418-34c33e305469",
+                "name": "Responder Erro Validacao",
+                "type": "n8n-nodes-base.respondToWebhook",
+                "typeVersion": 1.1,
+                "position": [
+                    224,
+                    160
+                ],
+                "parameters": {
+                    "respondWith": "json",
+                    "responseBody": "={{ JSON.stringify({ success: false, error: $json.message || 'Payload invalido: phone e action sao obrigatorios' }) }}",
+                    "options": {
+                        "responseCode": 400
                     }
                 }
             }
@@ -2791,6 +2856,13 @@
                     [
                         {
                             "node": "Roteador de A\u00e7\u00f5es",
+                            "type": "main",
+                            "index": 0
+                        }
+                    ],
+                    [
+                        {
+                            "node": "Responder Erro Validacao",
                             "type": "main",
                             "index": 0
                         }
@@ -3310,21 +3382,21 @@
         "authors": "Rafael da Silva",
         "name": null,
         "description": null,
-        "autosaved": true,
+        "autosaved": false,
         "workflowPublishHistory": [
             {
-                "createdAt": "2026-02-22T03:34:41.572Z",
-                "id": 1534,
+                "createdAt": "2026-02-22T03:49:16.338Z",
+                "id": 1546,
                 "workflowId": "SoB5evP9aOmj6hLA",
-                "versionId": "93e59d4d-0222-47b2-bf95-8b48cd959547",
+                "versionId": "6aaf4455-8558-46c9-87f2-5e19afcd2d7d",
                 "event": "deactivated",
                 "userId": "d7e6ecc8-7259-4124-87c7-29a5f2d233ba"
             },
             {
-                "createdAt": "2026-02-22T03:34:41.605Z",
-                "id": 1535,
+                "createdAt": "2026-02-22T03:49:16.407Z",
+                "id": 1547,
                 "workflowId": "SoB5evP9aOmj6hLA",
-                "versionId": "93e59d4d-0222-47b2-bf95-8b48cd959547",
+                "versionId": "6aaf4455-8558-46c9-87f2-5e19afcd2d7d",
                 "event": "activated",
                 "userId": "d7e6ecc8-7259-4124-87c7-29a5f2d233ba"
             }
