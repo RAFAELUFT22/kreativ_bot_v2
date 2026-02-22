@@ -29,3 +29,37 @@ read_docx.py
 pre_inscritons.jsonl
 instances.json
 .worktrees/
+
+# --- Kreativ: prevenir recontaminação ---
+
+# Outputs de debug/deploy
+deploy_output*.txt
+sim_*.txt
+debug_*.txt
+*_output*.txt
+*_logs*.txt
+bot_logs.txt
+check_out.txt
+n8n_data.txt
+
+# JSON de output (não são código)
+wf_out.json
+last_exec.json
+arquivo_saida.json
+workflow_from_api.json
+
+# Scripts temporários de sessão
+check_*.py
+test_branch.py
+trigger_*.py
+activate_resume.py
+update_n8n.py
+verify_full_cycle.py
+
+# Bloqueia scripts não-workflow em n8n-workflows/
+n8n-workflows/*.js
+n8n-workflows/*.py
+n8n-workflows/*.sh
+
+# Evitar typebot legados
+typebot-*-test.json
