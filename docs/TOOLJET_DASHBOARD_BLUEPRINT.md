@@ -27,38 +27,51 @@ This document provides the blueprint for building the administrative dashboard i
 
 #### `listarAlunos` (Kreativ DB)
 ```sql
-SELECT s.id, s.phone, s.name, s.email, s.course_id, 
-       c.name as course_name, s.current_module, 
-       s.completed_modules, s.attendance_status, s.lead_score,
-       to_char(s.created_at, 'DD/MM/YYYY') as data_cadastro
+SELECT 
+    s.id, 
+    s.phone, 
+    s.name, 
+    s.email, 
+    s.course_id, 
+    c.name AS course_name, 
+    s.current_module, 
+    s.completed_modules, 
+    s.attendance_status, 
+    s.lead_score,
+    TO_CHAR(s.created_at, 'DD/MM/YYYY') AS data_cadastro
 FROM students s
 LEFT JOIN courses c ON c.id = s.course_id
-WHERE s.phone ILIKE '%{{components.searchInput.value}}%'
-   OR s.name ILIKE '%{{components.searchInput.value}}%'
-ORDER BY s.created_at DESC LIMIT 100
+WHERE 
+    (
+        '{{components.searchInput.value}}' = '' 
+        OR s.phone ILIKE '%' || '{{components.searchInput.value}}' || '%'
+        OR s.name ILIKE '%' || '{{components.searchInput.value}}' || '%'
+    )
+ORDER BY s.created_at DESC 
+LIMIT 100;
 ```
 
 #### `upsertStudent` (Kreativ API)
 - **Method:** `POST`
-- **Path:** `/kreativ-unified-api`
+- **Path:** `https://n8n.extensionista.site/webhook/kreativ-unified-api`
 - **Body:**
 ```json
 {
   "action": "admin_upsert_student",
-  "phone": "{{components.phoneInput.value}}",
-  "name": "{{components.nameInput.value}}",
-  "course_id": {{components.courseSelect.value}}
+  "phone": "{{components.phoneInput.value || ''}}",
+  "name": "{{components.nameInput.value || ''}}",
+  "course_id": {{components.courseSelect.value || null}}
 }
 ```
 
 #### `resetStudentProgress` (Kreativ API)
 - **Method:** `POST`
-- **Path:** `/kreativ-unified-api`
+- **Path:** `https://n8n.extensionista.site/webhook/kreativ-unified-api`
 - **Body:**
 ```json
 {
   "action": "admin_reset_student",
-  "phone": "{{components.studentsTable.selectedRow.phone}}"
+  "phone": "{{components.studentsTable.selectedRow.phone || ''}}"
 }
 ```
 

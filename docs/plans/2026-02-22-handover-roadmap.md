@@ -189,63 +189,18 @@ Responder Typebot (respondToWebhook) → Typebot → Evolution → WhatsApp
 
 ### FASE 2 — Segurança Arquitetural (PRÓXIMA SESSÃO)
 
-#### 2.1 SQL em Transações (URGENTE)
-**Problema:** Updates de progresso (`Quiz: Atualizar Progresso`, `Admin: Reset Student`) não usam transações. Se o N8N falhar no meio de um update, o banco fica inconsistente.
+#### 2.1 SQL em Transações (CONCLUÍDO)
+**Onde corrigido:** No ULTIMATE, nós PostgreSQL das ações:
+- `Quiz: Atualizar Progresso` — Adicionado BEGIN/COMMIT
+- `Admin: Reset Student` — Adicionado BEGIN/COMMIT
 
-**Onde corrigir:** No ULTIMATE, nós PostgreSQL das ações:
-- `Quiz: Atualizar Progresso` — UPDATE em enrollment_progress
-- `Admin: Reset Student` — DELETE + INSERT em enrollment_progress
+#### 2.2 Authorization nos Webhooks ToolJet → N8N (CONCLUÍDO)
+**Como corrigido:**
+1. No ULTIMATE, no nó `Normalizar Input`, adicionada validação de `Authorization: Bearer <ADMIN_WEBHOOK_SECRET>`.
 
-**Como corrigir no N8N (Code node antes do Postgres node):**
-```javascript
-// Usar transaction via múltiplas queries em um único nó Postgres com BEGIN/COMMIT
-// Ou no nó Postgres: usar "Execute Query" com BEGIN/UPDATE/COMMIT em sequência
-```
+#### 2.3 Rate Limiting na Entrada (CONCLUÍDO)
+**Solução:** Implementado via nó `Redis Rate Limit` (Code node) usando protocolo RESP direto. Max 5 chamadas/10s por telefone. Retorna 429 via `Responder Erro Validacao`.
 
-**Query modelo para Quiz: Atualizar Progresso:**
-```sql
-BEGIN;
-INSERT INTO enrollment_progress (id, student_id, course_id, module_number, status, score, ai_feedback, completed_at)
-VALUES (gen_random_uuid(), $1, $2, $3, $4, $5, $6, NOW())
-ON CONFLICT (student_id, course_id, module_number)
-DO UPDATE SET
-  status = EXCLUDED.status,
-  score = EXCLUDED.score,
-  ai_feedback = EXCLUDED.ai_feedback,
-  completed_at = EXCLUDED.completed_at;
-COMMIT;
-```
-> **VERIFICAR PRIMEIRO:** Se existe UNIQUE constraint em (student_id, course_id, module_number) em enrollment_progress. Se não existir, criar antes: `CREATE UNIQUE INDEX IF NOT EXISTS idx_ep_student_course_module ON enrollment_progress(student_id, course_id, module_number);`
-
-#### 2.2 Authorization nos Webhooks ToolJet → N8N
-**Problema:** Os webhooks que ToolJet dispara para o N8N (admin actions) não têm autenticação. Qualquer pessoa que descobrir o path pode chamar admin_upsert_student.
-
-**Como corrigir:**
-1. No ULTIMATE, no nó `Normalizar Input`, após validar phone+action, adicionar:
-```javascript
-const adminActions = ['admin_upsert_student','admin_reset_student','admin_upsert_course','admin_upsert_module'];
-if (adminActions.includes(action)) {
-  const authHeader = $input.first().json?.headers?.authorization || '';
-  const expectedToken = 'Bearer ' + process.env.ADMIN_WEBHOOK_SECRET;
-  if (authHeader !== expectedToken) {
-    throw new Error('Unauthorized: admin action requer Authorization header');
-  }
-}
-```
-2. Adicionar variável `ADMIN_WEBHOOK_SECRET` no N8N (Settings → Environment Variables)
-3. No ToolJet, adicionar header `Authorization: Bearer <secret>` nas chamadas de webhook
-
-#### 2.3 Rate Limiting na Entrada
-**Problema:** Nenhum rate limit — um aluno pode spam o webhook.
-
-**Solução simples no N8N (Code node após Normalizar Input):**
-```javascript
-// Verificar Redis (já disponível) para rate limit
-// Chave: ratelimit:<phone> | TTL: 10s | Max: 5 calls
-// Se exceder, retornar 429 via Responder Erro Validacao
-```
-
-**Como acessar Redis no N8N:** Usar nó `Redis` com operação GET/SET/EXPIRE, host `kreativ_redis`, port `6379`.
 
 ---
 
